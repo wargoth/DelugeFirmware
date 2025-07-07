@@ -221,9 +221,7 @@ ActionResult ArrangerView::buttonAction(deluge::hid::Button b, bool on, bool inC
 			// RECORD+SONG shortcut - convert active loop to song section
 			if (Buttons::isButtonPressed(deluge::hid::button::RECORD)) {
 				if (arrangerLoopActive) {
-					// TODO: Implement loop-to-song-section conversion
-					// This will be implemented in the next step
-					display->displayPopup("LOOP -> SECTION");
+					convertLoopToSongSection();
 				}
 				else {
 					display->displayPopup("NO ACTIVE LOOP");
@@ -3742,4 +3740,87 @@ void ArrangerView::handleLoopRowDrag(int32_t scrollAmount) {
 
 	// Update the last used length
 	arrangerLoopLastUsedLength = arrangerLoopEnd - arrangerLoopStart;
+}
+
+void ArrangerView::convertLoopToSongSection() {
+	if (!arrangerLoopActive) {
+		return;
+	}
+
+	// Create an action for undo support
+	Action* action = actionLogger.getNewAction(ActionType::CLIP_INSTANCE_EDIT, ActionAddition::ALLOWED);
+	if (!action) {
+		display->displayError(Error::INSUFFICIENT_RAM);
+		return;
+	}
+
+	// Find the end of the current arrangement to place the new section
+	int32_t currentArrangementEnd = 0;
+	for (Output* output = currentSong->firstOutput; output; output = output->next) {
+		for (int32_t i = 0; i < output->clipInstances.getNumElements(); i++) {
+			ClipInstance* clipInstance = output->clipInstances.getElement(i);
+			int32_t clipEnd = clipInstance->pos + clipInstance->length;
+			currentArrangementEnd = std::max(currentArrangementEnd, clipEnd);
+		}
+	}
+
+	// Add some spacing before the new section (1 bar)
+	int32_t newSectionStart = currentArrangementEnd + 3840;
+	int32_t loopLength = arrangerLoopEnd - arrangerLoopStart;
+
+	// Track how many clips were copied for feedback
+	int32_t copiedClipsCount = 0;
+
+	// Copy all clips that intersect with the loop
+	for (Output* output = currentSong->firstOutput; output; output = output->next) {
+		for (int32_t i = 0; i < output->clipInstances.getNumElements(); i++) {
+			ClipInstance* clipInstance = output->clipInstances.getElement(i);
+			int32_t clipStart = clipInstance->pos;
+			int32_t clipEnd = clipInstance->pos + clipInstance->length;
+
+			// Check if clip intersects with loop
+			if (clipStart < arrangerLoopEnd && clipEnd > arrangerLoopStart) {
+				// Calculate intersection
+				int32_t intersectionStart = std::max(clipStart, arrangerLoopStart);
+				int32_t intersectionEnd = std::min(clipEnd, arrangerLoopEnd);
+				int32_t intersectionLength = intersectionEnd - intersectionStart;
+
+				if (intersectionLength > 0) {
+					// Create new clip instance in the new section
+					int32_t newClipIndex =
+					    output->clipInstances.insertAtKey(newSectionStart + (intersectionStart - arrangerLoopStart));
+					ClipInstance* newClipInstance = output->clipInstances.getElement(newClipIndex);
+
+					if (newClipInstance) {
+						// Copy the clip data
+						newClipInstance->clip = clipInstance->clip;
+						newClipInstance->length = intersectionLength;
+
+						// Record the action for undo
+						action->recordClipInstanceExistenceChange(output, newClipInstance, ExistenceChangeType::CREATE);
+
+						copiedClipsCount++;
+					}
+				}
+			}
+		}
+	}
+
+	// Update the arrangement display
+	arrangement.rowEdited(nullptr, newSectionStart, newSectionStart + loopLength, nullptr, nullptr);
+
+	// Provide feedback to user
+	if (copiedClipsCount > 0) {
+		String message;
+		message.set("COPIED ");
+		message.concatenateInt(copiedClipsCount);
+		message.concatenateAtPos(" CLIPS", message.getLength());
+		display->displayPopup(message.get());
+	}
+	else {
+		display->displayPopup("EMPTY LOOP");
+	}
+
+	// Request display update
+	uiNeedsRendering(this, 0xFFFFFFFF, 0xFFFFFFFF);
 }

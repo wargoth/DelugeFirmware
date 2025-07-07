@@ -101,6 +101,7 @@ public:
 	bool isPositionInLoop(int32_t position) const;
 	void handleLoopRowDrag(int32_t scrollAmount);
 	void checkAndHandleLoopPlayback();
+	void convertLoopToSongSection();
 
 	Output* outputsOnScreen[kDisplayHeight]{};
 	int8_t yPressedEffective{};
