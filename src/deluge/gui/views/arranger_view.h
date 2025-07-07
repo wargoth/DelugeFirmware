@@ -85,6 +85,23 @@ public:
 
 	void renderOLED(deluge::hid::display::oled_canvas::Canvas& canvas) override;
 
+	// Dedicated Loop Row functionality
+	void renderLoopRow(RGB* thisImage, uint8_t thisOccupancyMask[], int32_t renderWidth);
+	bool handleLoopRowPadAction(int32_t x, int32_t velocity);
+	void setLoopStart(int32_t newStart);
+	void setLoopEnd(int32_t newEnd);
+	void setLoopLength(int32_t newLength);
+	int32_t getLoopStart() const { return arrangerLoopStart; }
+	int32_t getLoopEnd() const { return arrangerLoopEnd; }
+	int32_t getLoopLength() const { return arrangerLoopEnd - arrangerLoopStart; }
+	bool isLoopActive() const { return arrangerLoopActive; }
+	void activateLoop(bool active = true);
+	void resetLoopToDefault();
+	RGB getLoopRowColor(int32_t position);
+	bool isPositionInLoop(int32_t position) const;
+	void handleLoopRowDrag(int32_t scrollAmount);
+	void checkAndHandleLoopPlayback();
+
 	Output* outputsOnScreen[kDisplayHeight]{};
 	int8_t yPressedEffective{};
 	int8_t yPressedActual{};
@@ -117,6 +134,15 @@ public:
 	int32_t lastTickSquare{};
 
 	int32_t xScrollWhenPlaybackStarted{};
+
+	// Dedicated Loop Row state
+	int32_t arrangerLoopStart{0};                 // Start position of the loop in ticks
+	int32_t arrangerLoopEnd{3840 * 4};            // End position of the loop in ticks (default to 4 bars)
+	bool arrangerLoopActive{false};               // Whether the loop is currently active
+	bool arrangerLoopPressedStart{false};         // Whether user is pressing loop start handle
+	bool arrangerLoopPressedEnd{false};           // Whether user is pressing loop end handle
+	int32_t arrangerLoopDragStartPos{0};          // Starting position when dragging the loop
+	int32_t arrangerLoopLastUsedLength{3840 * 4}; // Last used loop length for new loops
 
 	// ui
 	UIType getUIType() override { return UIType::ARRANGER; }

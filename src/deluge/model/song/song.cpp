@@ -3709,43 +3709,46 @@ ParamManager* Song::getBackedUpParamManagerPreferablyWithClip(ModControllableAud
                                                               ParamManager* stealInto) {
 
 	int32_t iAnyClip =
-	    backedUpParamManagers.search((uint32_t)modControllable, GREATER_OR_EQUAL); // Search just by first word
-	if (iAnyClip >= backedUpParamManagers.getNumElements()) {
-		return nullptr;
-	}
-	BackedUpParamManager* elementAnyClip = (BackedUpParamManager*)backedUpParamManagers.getElementAddress(iAnyClip);
-	if (elementAnyClip->modControllable != modControllable) {
-		return nullptr; // If nothing with even the correct modControllable at all, get out
-	}
+	    backedUpParamManagers.search((uint32_t)modControllable, GREATER_OR_EQUAL); // Search just by first word only
 
-	int32_t iCorrectClip;
-	BackedUpParamManager* elementCorrectClip;
-
-	if (!clip || elementAnyClip->clip == clip) {
-returnFirstForModControllableEvenIfNotRightClip:
-		iCorrectClip = iAnyClip;
-		elementCorrectClip = elementAnyClip;
-	}
-	else {
-		uint32_t keyWords[2];
-		keyWords[0] = (uint32_t)modControllable;
-		keyWords[1] = (uint32_t)clip;
-		iCorrectClip = backedUpParamManagers.searchMultiWordExact(keyWords, nullptr, iAnyClip + 1);
-		if (iCorrectClip == -1) {
-			goto returnFirstForModControllableEvenIfNotRightClip;
+	while (true) {
+		if (iAnyClip >= backedUpParamManagers.getNumElements()) {
+			return nullptr;
 		}
-		elementCorrectClip = (BackedUpParamManager*)backedUpParamManagers.getElementAddress(iCorrectClip);
-	}
+		BackedUpParamManager* elementAnyClip = (BackedUpParamManager*)backedUpParamManagers.getElementAddress(iAnyClip);
+		if (elementAnyClip->modControllable != modControllable) {
+			return nullptr; // If nothing with even the correct modControllable at all, get out
+		}
 
-	if (stealInto) {
-		stealInto->stealParamCollectionsFrom(
-		    &elementCorrectClip->paramManager,
-		    true); // Steal expression params too - if they're here (slightly rare case).
-		backedUpParamManagers.deleteAtIndex(iCorrectClip);
-		return stealInto;
-	}
-	else {
-		return &elementCorrectClip->paramManager;
+		int32_t iCorrectClip;
+		BackedUpParamManager* elementCorrectClip;
+
+		if (!clip || elementAnyClip->clip == clip) {
+returnFirstForModControllableEvenIfNotRightClip:
+			iCorrectClip = iAnyClip;
+			elementCorrectClip = elementAnyClip;
+		}
+		else {
+			uint32_t keyWords[2];
+			keyWords[0] = (uint32_t)modControllable;
+			keyWords[1] = (uint32_t)clip;
+			iCorrectClip = backedUpParamManagers.searchMultiWordExact(keyWords, nullptr, iAnyClip + 1);
+			if (iCorrectClip == -1) {
+				goto returnFirstForModControllableEvenIfNotRightClip;
+			}
+			elementCorrectClip = (BackedUpParamManager*)backedUpParamManagers.getElementAddress(iCorrectClip);
+		}
+
+		if (stealInto) {
+			stealInto->stealParamCollectionsFrom(
+			    &elementCorrectClip->paramManager,
+			    true); // Steal expression params too - if they're here (slightly rare case).
+			backedUpParamManagers.deleteAtIndex(iCorrectClip);
+			return stealInto;
+		}
+		else {
+			return &elementCorrectClip->paramManager;
+		}
 	}
 }
 

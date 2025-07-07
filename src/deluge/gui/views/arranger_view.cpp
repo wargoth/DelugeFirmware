@@ -23,6 +23,7 @@
 #include "gui/context_menu/audio_input_selector.h"
 #include "gui/context_menu/stem_export/cancel_stem_export.h"
 #include "gui/menu_item/colour.h"
+#include "gui/ui/audio_recorder.h"
 #include "gui/ui/keyboard/keyboard_screen.h"
 #include "gui/ui/load/load_instrument_preset_ui.h"
 #include "gui/ui/rename/rename_output_ui.h"
@@ -78,6 +79,7 @@
 #include "util/d_string.h"
 #include "util/functions.h"
 #include "util/try.h"
+#include <cmath>
 #include <cstdint>
 #include <new>
 
@@ -100,6 +102,15 @@ ArrangerView::ArrangerView() {
 	lastInteractedClipInstance = nullptr;
 
 	lastInteractedArrangementPos = -1;
+
+	// Initialize loop row properties
+	arrangerLoopStart = 0;
+	arrangerLoopEnd = 3840 * 8; // Default to 8 bars
+	arrangerLoopActive = false;
+	arrangerLoopPressedStart = false;
+	arrangerLoopPressedEnd = false;
+	arrangerLoopDragStartPos = 0;
+	arrangerLoopLastUsedLength = 3840 * 8; // Default to 8 bars
 }
 
 void ArrangerView::renderOLED(deluge::hid::display::oled_canvas::Canvas& canvas) {
@@ -206,6 +217,20 @@ ActionResult ArrangerView::buttonAction(deluge::hid::Button b, bool on, bool inC
 			if (inCardRoutine) {
 				return ActionResult::REMIND_ME_OUTSIDE_CARD_ROUTINE;
 			}
+
+			// RECORD+SONG shortcut - convert active loop to song section
+			if (Buttons::isButtonPressed(deluge::hid::button::RECORD)) {
+				if (arrangerLoopActive) {
+					// TODO: Implement loop-to-song-section conversion
+					// This will be implemented in the next step
+					display->displayPopup("LOOP -> SECTION");
+				}
+				else {
+					display->displayPopup("NO ACTIVE LOOP");
+				}
+				return ActionResult::DEALT_WITH;
+			}
+
 			if (currentUIMode == UI_MODE_NONE) {
 				if (Buttons::isShiftButtonPressed()) {
 					automationView.onArrangerView = true;
@@ -561,13 +586,14 @@ void ArrangerView::repopulateOutputsOnScreen(bool doRender) {
 	// First, clear out the Outputs onscreen
 	memset(outputsOnScreen, 0, sizeof(outputsOnScreen));
 
+	// Row 0 is reserved for the loop row, start arrangement outputs from row 1
 	Output* output = currentSong->firstOutput;
-	int32_t row = 0 - currentSong->arrangementYScroll;
+	int32_t row = 1 - currentSong->arrangementYScroll; // Start from row 1
 	while (output) {
 		if (row >= kDisplayHeight) {
 			break;
 		}
-		if (row >= 0) {
+		if (row >= 1) { // Only assign to rows 1 and above
 			outputsOnScreen[row] = output;
 		}
 		row++;
@@ -594,8 +620,19 @@ bool ArrangerView::renderSidebar(uint32_t whichRows, RGB image[][kDisplayWidth +
 
 	for (int32_t i = 0; i < kDisplayHeight; i++) {
 		if (whichRows & (1 << i)) {
-			drawMuteSquare(i, image[i]);
-			drawAuditionSquare(i, image[i]);
+			// Row 0 is the loop row - render differently
+			if (i == 0) {
+				// Loop row sidebar: show loop status or controls
+				RGB loopSidebarColor =
+				    arrangerLoopActive ? RGB{.r = 0, .g = 255, .b = 0} : RGB{.r = 64, .g = 64, .b = 64};
+				image[i][kDisplayWidth] = loopSidebarColor;
+				image[i][kDisplayWidth + 1] = loopSidebarColor;
+			}
+			else {
+				// Normal arrangement rows
+				drawMuteSquare(i, image[i]);
+				drawAuditionSquare(i, image[i]);
+			}
 		}
 	}
 	return true;
@@ -982,6 +1019,15 @@ ActionResult ArrangerView::padAction(int32_t x, int32_t y, int32_t velocity) {
 }
 
 ActionResult ArrangerView::handleEditPadAction(int32_t x, int32_t y, int32_t velocity) {
+	// Handle loop row interaction (y == 0)
+	if (y == 0) {
+		if (handleLoopRowPadAction(x, velocity)) {
+			uiNeedsRendering(this, 1, 0); // Re-render the loop row
+		}
+		return ActionResult::DEALT_WITH;
+	}
+
+	// For all other rows, handle normally but adjust for the offset
 	Output* output = outputsOnScreen[y];
 
 	if (currentUIMode == UI_MODE_HOLDING_ARRANGEMENT_ROW_AUDITION) {
@@ -1008,6 +1054,16 @@ ActionResult ArrangerView::handleEditPadAction(int32_t x, int32_t y, int32_t vel
 }
 
 ActionResult ArrangerView::handleStatusPadAction(int32_t y, int32_t velocity, UI* ui) {
+	// Handle loop row status pad action (y == 0)
+	if (y == 0) {
+		if (velocity) {
+			// Toggle loop active/inactive
+			activateLoop(!arrangerLoopActive);
+			uiNeedsRendering(this, 1, 1); // Re-render loop row and sidebar
+		}
+		return ActionResult::DEALT_WITH;
+	}
+
 	Output* output = outputsOnScreen[y];
 
 	if (!output) {
@@ -1140,6 +1196,16 @@ regularMutePadPress:
 }
 
 ActionResult ArrangerView::handleAuditionPadAction(int32_t y, int32_t velocity, UI* ui) {
+	// Handle loop row audition pad action (y == 0)
+	if (y == 0) {
+		if (velocity) {
+			// Reset loop to default length and position
+			resetLoopToDefault();
+			uiNeedsRendering(this, 1, 1); // Re-render loop row and sidebar
+		}
+		return ActionResult::DEALT_WITH;
+	}
+
 	Output* output = outputsOnScreen[y];
 
 	switch (currentUIMode) {
@@ -2173,9 +2239,17 @@ uint32_t ArrangerView::doActualRender(int32_t xScroll, uint32_t xZoom, uint32_t 
 				occupancyMaskThisRow = occupancyMask[yDisplay];
 			}
 
-			bool success = renderRow(modelStack, yDisplay, xScroll, xZoom, image, occupancyMaskThisRow, renderWidth);
-			if (!success) {
-				whichRowsCouldntBeRendered |= (1 << yDisplay);
+			// Render the dedicated loop row at the top (yDisplay = 0)
+			if (yDisplay == 0) {
+				renderLoopRow(image, occupancyMaskThisRow, renderWidth);
+			}
+			else {
+				// Normal arrangement rows are shifted down by 1
+				bool success =
+				    renderRow(modelStack, yDisplay - 1, xScroll, xZoom, image, occupancyMaskThisRow, renderWidth);
+				if (!success) {
+					whichRowsCouldntBeRendered |= (1 << yDisplay);
+				}
 			}
 		}
 
@@ -2251,8 +2325,8 @@ bool ArrangerView::renderRow(ModelStack* modelStack, int32_t yDisplay, int32_t x
 		int32_t newEndPos = newStartPos + clipInstance->length;
 
 		bool rightOnSquare;
-		int32_t newStartSquare = getSquareFromPos(newStartPos, &rightOnSquare);
-		int32_t newEndSquare = getSquareEndFromPos(newEndPos);
+		int32_t newStartSquare = getSquareFromPos(newStartPos, &rightOnSquare, xScroll, xZoom);
+		int32_t newEndSquare = getSquareEndFromPos(newEndPos, xScroll);
 
 		newStartSquare = std::max(newStartSquare, 0_i32);
 		newEndSquare = std::min(newEndSquare, renderWidth);
@@ -2905,8 +2979,9 @@ ActionResult ArrangerView::horizontalScrollOneSquare(int32_t direction) {
 	if (newXScroll != currentSong->xScroll[NAVIGATION_ARRANGEMENT]) {
 
 		bool draggingClipInstance = isUIModeActive(UI_MODE_HOLDING_ARRANGEMENT_ROW);
+		bool draggingLoopRow = isUIModeActive(UI_MODE_HOLDING_ARRANGEMENT_LOOP_ROW);
 
-		if (draggingClipInstance && sdRoutineLock) {
+		if ((draggingClipInstance || draggingLoopRow) && sdRoutineLock) {
 			return ActionResult::REMIND_ME_OUTSIDE_CARD_ROUTINE;
 		}
 
@@ -2914,6 +2989,9 @@ ActionResult ArrangerView::horizontalScrollOneSquare(int32_t direction) {
 
 		if (draggingClipInstance) {
 			putDraggedClipInstanceInNewPosition(outputsOnScreen[yPressedEffective]);
+		}
+		else if (draggingLoopRow) {
+			handleLoopRowDrag(scrollAmount);
 		}
 
 		uiNeedsRendering(this, 0xFFFFFFFF, 0);
@@ -3074,6 +3152,9 @@ static const uint32_t autoScrollUIModes[] = {UI_MODE_HOLDING_HORIZONTAL_ENCODER_
                                              UI_MODE_STEM_EXPORT, 0};
 
 void ArrangerView::graphicsRoutine() {
+	// Check and handle loop playback
+	checkAndHandleLoopPlayback();
+
 	UI* ui = getCurrentUI();
 
 	static int counter = 0;
@@ -3391,4 +3472,274 @@ void ArrangerView::requestRendering(UI* ui, uint32_t whichMainRows, uint32_t whi
 	else if (ui == &arrangerView) {
 		uiNeedsRendering(ui, whichMainRows, whichSideRows);
 	}
+}
+
+// Dedicated Loop Row implementation
+
+void ArrangerView::renderLoopRow(RGB* thisImage, uint8_t thisOccupancyMask[], int32_t renderWidth) {
+	// First, clear the row
+	for (int32_t x = 0; x < renderWidth; x++) {
+		thisImage[x] = colours::black;
+		if (thisOccupancyMask) {
+			thisOccupancyMask[x] = 0;
+		}
+	}
+
+	// If no loop is active, render a dim background
+	if (!arrangerLoopActive) {
+		for (int32_t x = 0; x < renderWidth; x++) {
+			thisImage[x] = RGB{.r = 20, .g = 20, .b = 20}; // Very dim background
+		}
+		return;
+	}
+
+	// Calculate loop bounds in display coordinates
+	int32_t xScroll = currentSong->xScroll[NAVIGATION_ARRANGEMENT];
+	uint32_t xZoom = currentSong->xZoom[NAVIGATION_ARRANGEMENT];
+
+	bool rightOnSquareStart;
+	int32_t loopStartSquare = getSquareFromPos(arrangerLoopStart, &rightOnSquareStart, xScroll, xZoom);
+	int32_t loopEndSquare = getSquareEndFromPos(arrangerLoopEnd);
+
+	// Clamp to visible area
+	loopStartSquare = std::max(loopStartSquare, 0_i32);
+	loopEndSquare = std::min(loopEndSquare, renderWidth);
+
+	// Render the loop handle with rainbow colors
+	for (int32_t x = loopStartSquare; x < loopEndSquare; x++) {
+		thisImage[x] = getLoopRowColor(x - loopStartSquare);
+		if (thisOccupancyMask) {
+			thisOccupancyMask[x] = 64; // Medium occupancy for loop
+		}
+	}
+
+	// Add visual indicators for start and end handles
+	if (loopStartSquare >= 0 && loopStartSquare < renderWidth) {
+		// Start handle - brighter
+		thisImage[loopStartSquare] = thisImage[loopStartSquare].forTail();
+		if (!rightOnSquareStart) {
+			thisImage[loopStartSquare] = thisImage[loopStartSquare].forBlur();
+		}
+	}
+
+	if (loopEndSquare > loopStartSquare && loopEndSquare <= renderWidth && loopEndSquare - 1 >= 0) {
+		// End handle - brighter
+		thisImage[loopEndSquare - 1] = thisImage[loopEndSquare - 1].forTail();
+	}
+}
+
+RGB ArrangerView::getLoopRowColor(int32_t position) {
+	// Create a rainbow effect based on position
+	// Use HSV color space for smooth rainbow transition
+
+	// Map position to a phase in the rainbow (0-360 degrees)
+	int32_t loopLength = arrangerLoopEnd - arrangerLoopStart;
+	if (loopLength == 0)
+		return RGB{.r = 255, .g = 255, .b = 255};
+
+	// Convert loop length to display squares for consistent rainbow effect
+	int32_t xScroll = currentSong->xScroll[NAVIGATION_ARRANGEMENT];
+	uint32_t xZoom = currentSong->xZoom[NAVIGATION_ARRANGEMENT];
+	int32_t loopLengthSquares =
+	    getSquareEndFromPos(arrangerLoopEnd) - getSquareFromPos(arrangerLoopStart, nullptr, xScroll, xZoom);
+
+	if (loopLengthSquares <= 0)
+		loopLengthSquares = 1;
+
+	// Create rainbow based on position within the loop
+	float hue = (float)(position % loopLengthSquares) / loopLengthSquares * 360.0f;
+
+	// Convert HSV to RGB (simplified version)
+	// H: 0-360, S: 1.0, V: 0.8 for nice visibility
+	float saturation = 1.0f;
+	float value = 0.8f;
+
+	float c = value * saturation;
+	float x = c * (1.0f - fabs(fmod(hue / 60.0f, 2.0f) - 1.0f));
+	float m = value - c;
+
+	float r, g, b;
+	if (hue >= 0 && hue < 60) {
+		r = c;
+		g = x;
+		b = 0;
+	}
+	else if (hue >= 60 && hue < 120) {
+		r = x;
+		g = c;
+		b = 0;
+	}
+	else if (hue >= 120 && hue < 180) {
+		r = 0;
+		g = c;
+		b = x;
+	}
+	else if (hue >= 180 && hue < 240) {
+		r = 0;
+		g = x;
+		b = c;
+	}
+	else if (hue >= 240 && hue < 300) {
+		r = x;
+		g = 0;
+		b = c;
+	}
+	else {
+		r = c;
+		g = 0;
+		b = x;
+	}
+
+	// Convert to 0-255 range
+	uint8_t red = (uint8_t)((r + m) * 255);
+	uint8_t green = (uint8_t)((g + m) * 255);
+	uint8_t blue = (uint8_t)((b + m) * 255);
+
+	return RGB{.r = red, .g = green, .b = blue};
+}
+
+bool ArrangerView::handleLoopRowPadAction(int32_t x, int32_t velocity) {
+	if (velocity > 0) {
+		// Calculate position from x coordinate
+		int32_t xScroll = currentSong->xScroll[NAVIGATION_ARRANGEMENT];
+		uint32_t xZoom = currentSong->xZoom[NAVIGATION_ARRANGEMENT];
+		int32_t pressedPos = getPosFromSquare(x, xScroll, xZoom);
+
+		// If no loop is active, create a new loop centered on the pressed position
+		if (!arrangerLoopActive) {
+			int32_t halfLength = arrangerLoopLastUsedLength / 2;
+			setLoopStart(pressedPos - halfLength);
+			setLoopEnd(pressedPos + halfLength);
+			activateLoop(true);
+			arrangerLoopDragStartPos = pressedPos;
+			currentUIMode = UI_MODE_HOLDING_ARRANGEMENT_LOOP_ROW;
+			return true;
+		}
+
+		// Check if we're near the start or end handle
+		int32_t startDistance = abs(pressedPos - arrangerLoopStart);
+		int32_t endDistance = abs(pressedPos - arrangerLoopEnd);
+		int32_t handleThreshold = 3840 / 4; // Quarter bar threshold
+
+		if (startDistance < handleThreshold && startDistance <= endDistance) {
+			// Dragging start handle
+			arrangerLoopPressedStart = true;
+			arrangerLoopDragStartPos = pressedPos;
+			currentUIMode = UI_MODE_HOLDING_ARRANGEMENT_LOOP_ROW;
+		}
+		else if (endDistance < handleThreshold) {
+			// Dragging end handle
+			arrangerLoopPressedEnd = true;
+			arrangerLoopDragStartPos = pressedPos;
+			currentUIMode = UI_MODE_HOLDING_ARRANGEMENT_LOOP_ROW;
+		}
+		else if (isPositionInLoop(pressedPos)) {
+			// Dragging the entire loop
+			arrangerLoopDragStartPos = pressedPos;
+			currentUIMode = UI_MODE_HOLDING_ARRANGEMENT_LOOP_ROW;
+		}
+		else {
+			// Create new loop at pressed position
+			int32_t halfLength = arrangerLoopLastUsedLength / 2;
+			setLoopStart(pressedPos - halfLength);
+			setLoopEnd(pressedPos + halfLength);
+			arrangerLoopDragStartPos = pressedPos;
+			currentUIMode = UI_MODE_HOLDING_ARRANGEMENT_LOOP_ROW;
+		}
+
+		return true;
+	}
+	else {
+		// Release
+		arrangerLoopPressedStart = false;
+		arrangerLoopPressedEnd = false;
+		arrangerLoopDragStartPos = 0;
+		currentUIMode = UI_MODE_NONE;
+		return true;
+	}
+}
+
+void ArrangerView::setLoopStart(int32_t newStart) {
+	arrangerLoopStart = std::max(0_i32, newStart);
+	// Ensure start is before end
+	if (arrangerLoopStart >= arrangerLoopEnd) {
+		arrangerLoopEnd = arrangerLoopStart + 3840; // Minimum 1 bar length
+	}
+}
+
+void ArrangerView::setLoopEnd(int32_t newEnd) {
+	arrangerLoopEnd = std::max(arrangerLoopStart + 3840, newEnd); // Minimum 1 bar length
+}
+
+void ArrangerView::setLoopLength(int32_t newLength) {
+	newLength = std::max(3840_i32, newLength); // Minimum 1 bar length
+	arrangerLoopEnd = arrangerLoopStart + newLength;
+	arrangerLoopLastUsedLength = newLength;
+}
+
+void ArrangerView::activateLoop(bool active) {
+	arrangerLoopActive = active;
+	if (active && playbackHandler.isEitherClockActive()) {
+		// If playback is active, notify the playback system about the loop change
+		// This will be implemented when we integrate with playback
+	}
+}
+
+void ArrangerView::resetLoopToDefault() {
+	arrangerLoopStart = 0;
+	arrangerLoopEnd = arrangerLoopLastUsedLength;
+	arrangerLoopActive = false;
+}
+
+bool ArrangerView::isPositionInLoop(int32_t position) const {
+	return arrangerLoopActive && position >= arrangerLoopStart && position < arrangerLoopEnd;
+}
+
+void ArrangerView::checkAndHandleLoopPlayback() {
+	// Only process if loop is active and we're in arrangement mode
+	if (!arrangerLoopActive || !arrangement.hasPlaybackActive()) {
+		return;
+	}
+
+	int32_t currentPos = arrangement.getLivePos();
+
+	// Check if we've reached or passed the loop end
+	if (currentPos >= arrangerLoopEnd) {
+		// If recording should stop at loop end, handle that first
+		if (playbackHandler.stopOutputRecordingAtLoopEnd && audioRecorder.isCurrentlyResampling()) {
+			audioRecorder.endRecordingSoon();
+			playbackHandler.stopOutputRecordingAtLoopEnd = false;
+		}
+
+		// Jump back to loop start
+		arrangement.resetPlayPos(arrangerLoopStart, false);
+
+		// Trigger re-rendering to update the display
+		uiNeedsRendering(this, 0xFFFFFFFF, 0);
+	}
+}
+
+void ArrangerView::handleLoopRowDrag(int32_t scrollAmount) {
+	if (arrangerLoopPressedStart) {
+		// Dragging the start handle
+		int32_t newStart = arrangerLoopStart - scrollAmount;
+		setLoopStart(newStart);
+	}
+	else if (arrangerLoopPressedEnd) {
+		// Dragging the end handle
+		int32_t newEnd = arrangerLoopEnd - scrollAmount;
+		setLoopEnd(newEnd);
+	}
+	else if (arrangerLoopDragStartPos != 0) {
+		// Dragging the entire loop
+		int32_t loopLength = arrangerLoopEnd - arrangerLoopStart;
+		int32_t newStart = arrangerLoopStart - scrollAmount;
+		if (newStart >= 0) {
+			arrangerLoopStart = newStart;
+			arrangerLoopEnd = arrangerLoopStart + loopLength;
+		}
+	}
+
+	// Update the last used length
+	arrangerLoopLastUsedLength = arrangerLoopEnd - arrangerLoopStart;
 }
