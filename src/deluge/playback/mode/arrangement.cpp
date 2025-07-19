@@ -342,6 +342,8 @@ justDoArp:
 		// processCurrentPos() on that paramManager above. Because otherwise, its ticksTilNextEvent would be an invalid
 		// value - often 0, which causes a freeze / infinite loop.
 	}
+	// Check and handle arranger loop
+	checkAndHandleArrangerLoop();
 }
 
 void Arrangement::resetPlayPos(int32_t newPos, bool doingComplete, int32_t buttonPressLatency) {
@@ -669,4 +671,36 @@ void Arrangement::endAnyLinearRecording() {
 	arrangerView.mustRedrawTickSquares = true; // Tick square shouldn't be red anymore
 
 	uiNeedsRendering(&arrangerView, 0xFFFFFFFF, 0);
+}
+
+bool Arrangement::shouldLoopArrangement() {
+	return (arrangerView.arrangerLoopExists && arrangerView.arrangerLoopActive);
+}
+
+void Arrangement::checkAndHandleArrangerLoop() {
+	if (!shouldLoopArrangement()) {
+		return;
+	}
+
+	// Check if we've passed the loop end point
+	if (lastProcessedPos >= arrangerView.arrangerLoopEnd) {
+		// Reset to loop start
+		int32_t newPos = arrangerView.arrangerLoopStart;
+		resetPlayPos(newPos, false);
+
+		// Update visual indicators if needed
+		arrangerView.reassessWhetherDoingAutoScroll(newPos);
+
+		// Ensure all outputs are properly handled at the new position
+		for (Output* output = currentSong->firstOutput; output; output = output->next) {
+			if (currentSong->isOutputActiveInArrangement(output)) {
+				// Find the clip instance that should be playing at the new position
+				int32_t i = output->clipInstances.search(newPos + 1, LESS);
+				ClipInstance* clipInstance = output->clipInstances.getElement(i);
+				if (clipInstance && clipInstance->pos + clipInstance->length > newPos) {
+					resumeClipInstancePlayback(clipInstance, false, true);
+				}
+			}
+		}
+	}
 }
