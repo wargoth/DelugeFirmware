@@ -52,6 +52,8 @@ public:
 	                                  bool shouldCloneRepeats = false);
 	int32_t getLivePos(uint32_t* timeRemainder = nullptr);
 	void endAnyLinearRecording();
+	bool shouldLoopArrangement();
+	void checkAndHandleArrangerLoop();
 
 	int32_t lastProcessedPos;
 	int32_t playbackStartedAtPos;

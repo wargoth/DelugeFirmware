@@ -41,6 +41,7 @@ public:
 	void focusRegained() override;
 	ActionResult padAction(int32_t x, int32_t y, int32_t velocity) override;
 	ActionResult handleEditPadAction(int32_t x, int32_t y, int32_t velocity);
+	ActionResult handleLoopRowPadAction(int32_t x, int32_t y, int32_t velocity);
 	ActionResult handleStatusPadAction(int32_t y, int32_t velocity, UI* ui);
 	ActionResult handleAuditionPadAction(int32_t y, int32_t velocity, UI* ui);
 	ActionResult buttonAction(deluge::hid::Button b, bool on, bool inCardRoutine) override;
@@ -56,6 +57,9 @@ public:
 	                    uint8_t occupancyMask[][kDisplayWidth + kSideBarWidth], bool drawUndefinedArea = true) override;
 	bool renderRow(ModelStack* modelStack, int32_t yDisplay, int32_t xScroll, uint32_t xZoom, RGB* thisImage,
 	               uint8_t thisOccupancyMask[], int32_t renderWidth);
+	void renderLoopRow(int32_t xScroll, uint32_t xZoom, RGB* imageThisRow, uint8_t thisOccupancyMask[],
+	                   int32_t renderWidth);
+	RGB getRainbowColor(float position);
 	void editPadAction(int32_t x, int32_t y, bool on);
 	ActionResult horizontalEncoderAction(int32_t offset) override;
 	uint32_t getMaxLength() override;
@@ -117,6 +121,14 @@ public:
 	int32_t lastTickSquare{};
 
 	int32_t xScrollWhenPlaybackStarted{};
+
+	// Loop row state variables
+	int32_t arrangerLoopStart{-1};
+	int32_t arrangerLoopEnd{-1};
+	bool arrangerLoopExists{false};
+	bool arrangerLoopActive{false};
+	int32_t arrangerLoopFirstPressPos{-1};
+	bool arrangerLoopCreationInProgress{false};
 
 	// ui
 	UIType getUIType() override { return UIType::ARRANGER; }

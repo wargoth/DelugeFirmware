@@ -22,10 +22,13 @@
 #include "gui/ui/browser/sample_browser.h"
 #include "gui/ui/root_ui.h"
 #include "gui/ui_timer_manager.h"
+#include "gui/views/arranger_view.h"
 #include "memory/general_memory_allocator.h"
 #include "model/clip/audio_clip.h"
 #include "model/sample/sample.h"
 #include "model/song/song.h"
+#include "playback/mode/arrangement.h"
+#include "playback/playback_handler.h"
 #include "processing/engines/audio_engine.h"
 #include "processing/stem_export/stem_export.h"
 #include "storage/audio/audio_file_manager.h"
@@ -329,6 +332,11 @@ void SampleRecorder::setRecordingThreshold() {
 
 		thresholdRecording = true;
 	}
+}
+
+void SampleRecorder::setLoopRecordingParams(int64_t loopEnd) {
+	shouldStopAtLoopEnd = true;
+	loopEndPosition = loopEnd;
 }
 
 // Beware! This could get called during card routine - e.g. if user stopped playback. So we'll just store a changed
@@ -921,6 +929,17 @@ void SampleRecorder::feedAudio(std::span<StereoSample> input, bool applyGain, ui
 
 		// Or, if properly recording...
 		else {
+			// Check for loop boundary if loop recording is enabled
+			if (shouldStopAtLoopEnd && arrangement.hasPlaybackActive() && playbackHandler.isEitherClockActive()) {
+				int64_t currentArrangerPos = arrangement.lastProcessedPos;
+
+				// Check if we've reached or passed the loop end
+				if (currentArrangerPos >= loopEndPosition) {
+					// Stop recording at loop boundary
+					goto doFinishCapturing;
+				}
+			}
+
 			int32_t samplesLeft;
 
 			if (status == RecorderStatus::CAPTURING_DATA_WAITING_TO_STOP) {
@@ -950,7 +969,7 @@ doFinishCapturing:
 					goto doFinishCapturing;
 				}
 				else if (error != Error::NONE) { // RAM error
-					D_PRINTLN("couldn't allocate RAM");
+					// D_PRINTLN("couldn't allocate RAM");
 					abort();
 					return;
 				}
@@ -1097,7 +1116,7 @@ void SampleRecorder::endSyncedRecording(int32_t buttonLatencyForTempolessRecordi
 		    numSamplesExtraToCaptureAtEndSyncingWise - buttonLatencyForTempolessRecording;
 		int32_t numMoreSamplesToCapture = numMoreSamplesTilEndLoopPoint;
 
-		D_PRINTLN("buttonLatencyForTempolessRecording:  %d", buttonLatencyForTempolessRecording);
+		// D_PRINTLN("buttonLatencyForTempolessRecording:  %d", buttonLatencyForTempolessRecording);
 
 		if (recordingExtraMargins) {
 			numMoreSamplesToCapture += kAudioClipMarginSizePostEnd; // Means we also have an audioClip

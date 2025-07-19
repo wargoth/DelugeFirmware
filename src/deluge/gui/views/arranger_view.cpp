@@ -79,6 +79,7 @@
 #include "util/functions.h"
 #include "util/try.h"
 #include <algorithm>
+#include <cmath>
 #include <cstdint>
 #include <new>
 
@@ -563,12 +564,12 @@ void ArrangerView::repopulateOutputsOnScreen(bool doRender) {
 	memset(outputsOnScreen, 0, sizeof(outputsOnScreen));
 
 	Output* output = currentSong->firstOutput;
-	int32_t row = 0 - currentSong->arrangementYScroll;
+	int32_t row = 1 - currentSong->arrangementYScroll; // Start at row 1 to account for loop row at 0
 	while (output) {
 		if (row >= kDisplayHeight) {
 			break;
 		}
-		if (row >= 0) {
+		if (row >= 1) { // Start at row 1, not 0 (which is reserved for loop row)
 			outputsOnScreen[row] = output;
 		}
 		row++;
@@ -605,14 +606,25 @@ bool ArrangerView::renderSidebar(uint32_t whichRows, RGB image[][kDisplayWidth +
 void ArrangerView::drawMuteSquare(int32_t yDisplay, RGB thisImage[]) {
 	RGB& thisColour = thisImage[kDisplayWidth];
 
+	// Handle loop row (y = 0)
+	if (yDisplay == 0) {
+		if (arrangerLoopExists && arrangerLoopActive) {
+			thisColour = colours::green; // Active loop
+		}
+		else {
+			thisColour = colours::black; // No loop or inactive
+		}
+		return;
+	}
+
 	// If no Instrument, black
-	if (!outputsOnScreen[yDisplay]) {
+	if (!outputsOnScreen[yDisplay - 1]) { // Shift down by 1 to account for loop row
 		thisColour = colours::black;
 	}
 
-	else if (currentUIMode == UI_MODE_VIEWING_RECORD_ARMING && outputsOnScreen[yDisplay]->armedForRecording) {
+	else if (currentUIMode == UI_MODE_VIEWING_RECORD_ARMING && outputsOnScreen[yDisplay - 1]->armedForRecording) {
 		if (blinkOn) {
-			if (outputsOnScreen[yDisplay]->wantsToBeginArrangementRecording()) {
+			if (outputsOnScreen[yDisplay - 1]->wantsToBeginArrangementRecording()) {
 				thisColour = {255, 1, 0};
 			}
 			else {
@@ -625,7 +637,7 @@ void ArrangerView::drawMuteSquare(int32_t yDisplay, RGB thisImage[]) {
 	}
 
 	// Soloing - blue
-	else if (outputsOnScreen[yDisplay]->soloingInArrangementMode) {
+	else if (outputsOnScreen[yDisplay - 1]->soloingInArrangementMode) {
 		thisColour = menu_item::soloColourMenu.getRGB();
 	}
 
@@ -633,7 +645,7 @@ void ArrangerView::drawMuteSquare(int32_t yDisplay, RGB thisImage[]) {
 	else {
 
 		// Muted - yellow
-		if (outputsOnScreen[yDisplay]->mutedInArrangementMode) {
+		if (outputsOnScreen[yDisplay - 1]->mutedInArrangementMode) {
 			thisColour = menu_item::mutedColourMenu.getRGB();
 		}
 
@@ -651,8 +663,14 @@ void ArrangerView::drawMuteSquare(int32_t yDisplay, RGB thisImage[]) {
 void ArrangerView::drawAuditionSquare(int32_t yDisplay, RGB thisImage[]) {
 	RGB& thisColour = thisImage[kDisplayWidth + 1];
 
+	// Handle loop row (y = 0) - always yellow, non-functional
+	if (yDisplay == 0) {
+		thisColour = colours::yellow;
+		return;
+	}
+
 	if (view.midiLearnFlashOn) {
-		Output* output = outputsOnScreen[yDisplay];
+		Output* output = outputsOnScreen[yDisplay - 1]; // Shift down by 1 to account for loop row
 
 		if (!output || output->type == OutputType::AUDIO) {
 			goto drawNormally;
@@ -983,13 +1001,18 @@ ActionResult ArrangerView::padAction(int32_t x, int32_t y, int32_t velocity) {
 }
 
 ActionResult ArrangerView::handleEditPadAction(int32_t x, int32_t y, int32_t velocity) {
-	Output* output = outputsOnScreen[y];
+	// Handle loop row (y = 0)
+	if (y == 0) {
+		return handleLoopRowPadAction(x, y, velocity);
+	}
+
+	Output* output = outputsOnScreen[y - 1]; // Shift down by 1 to account for loop row
 
 	if (currentUIMode == UI_MODE_HOLDING_ARRANGEMENT_ROW_AUDITION) {
 		if (velocity) {
 			// NAME shortcut
 			if (x == 11 && y == 5) {
-				Output* output = outputsOnScreen[yPressedEffective];
+				Output* output = outputsOnScreen[yPressedEffective - 1];
 				if (output && output->type != OutputType::CV) {
 					endAudition(output);
 					currentUIMode = UI_MODE_NONE;
@@ -1008,8 +1031,58 @@ ActionResult ArrangerView::handleEditPadAction(int32_t x, int32_t y, int32_t vel
 	return ActionResult::DEALT_WITH;
 }
 
+ActionResult ArrangerView::handleLoopRowPadAction(int32_t x, int32_t y, int32_t velocity) {
+	if (!velocity) {
+		return ActionResult::DEALT_WITH; // Only handle pad press, not release
+	}
+
+	int32_t pressPosition = getPosFromSquare(x);
+
+	// Two-press loop creation logic
+	if (!arrangerLoopExists && !arrangerLoopCreationInProgress) {
+		// First press - start loop creation
+		arrangerLoopFirstPressPos = pressPosition;
+		arrangerLoopCreationInProgress = true;
+		currentUIMode = UI_MODE_LOOP_CREATION_FIRST_PRESS;
+		uiNeedsRendering(this, 1, 0); // Redraw loop row
+	}
+	else if (!arrangerLoopExists && arrangerLoopCreationInProgress) {
+		// Second press - complete loop creation
+		arrangerLoopStart = (pressPosition < arrangerLoopFirstPressPos) ? pressPosition : arrangerLoopFirstPressPos;
+		arrangerLoopEnd = (pressPosition > arrangerLoopFirstPressPos) ? pressPosition : arrangerLoopFirstPressPos;
+		arrangerLoopExists = true;
+		arrangerLoopActive = false; // Created but not active by default
+		arrangerLoopCreationInProgress = false;
+		currentUIMode = UI_MODE_NONE;
+		uiNeedsRendering(this, 1, 0); // Redraw loop row
+	}
+	else if (arrangerLoopExists) {
+		// Loop exists - remove it
+		arrangerLoopExists = false;
+		arrangerLoopActive = false;
+		arrangerLoopCreationInProgress = false;
+		arrangerLoopFirstPressPos = -1;
+		arrangerLoopStart = -1;
+		arrangerLoopEnd = -1;
+		currentUIMode = UI_MODE_NONE;
+		uiNeedsRendering(this, 1, 0); // Redraw loop row
+	}
+
+	return ActionResult::DEALT_WITH;
+}
+
 ActionResult ArrangerView::handleStatusPadAction(int32_t y, int32_t velocity, UI* ui) {
-	Output* output = outputsOnScreen[y];
+	// Handle loop row status pad (y = 0)
+	if (y == 0) {
+		if (velocity && arrangerLoopExists) {
+			// Toggle loop activation
+			arrangerLoopActive = !arrangerLoopActive;
+			uiNeedsRendering(ui, 0, 1); // Redraw loop row
+		}
+		return ActionResult::DEALT_WITH;
+	}
+
+	Output* output = outputsOnScreen[y - 1]; // Shift down by 1 to account for loop row
 
 	if (!output) {
 		return ActionResult::DEALT_WITH;
@@ -1141,7 +1214,13 @@ regularMutePadPress:
 }
 
 ActionResult ArrangerView::handleAuditionPadAction(int32_t y, int32_t velocity, UI* ui) {
-	Output* output = outputsOnScreen[y];
+	// Handle loop row audition pad (y = 0) - always yellow, non-functional
+	if (y == 0) {
+		// Do nothing - loop row audition pad is non-functional
+		return ActionResult::DEALT_WITH;
+	}
+
+	Output* output = outputsOnScreen[y - 1]; // Shift down by 1 to account for loop row
 
 	switch (currentUIMode) {
 	case UI_MODE_MIDI_LEARN:
@@ -2186,6 +2265,106 @@ uint32_t ArrangerView::doActualRender(int32_t xScroll, uint32_t xZoom, uint32_t 
 	return whichRowsCouldntBeRendered;
 }
 
+void ArrangerView::renderLoopRow(int32_t xScroll, uint32_t xZoom, RGB* imageThisRow, uint8_t thisOccupancyMask[],
+                                 int32_t renderWidth) {
+	// Clear the row first
+	for (int32_t x = 0; x < renderWidth; x++) {
+		imageThisRow[x] = colours::black;
+		if (thisOccupancyMask) {
+			thisOccupancyMask[x] = 0;
+		}
+	}
+
+	// Show first press position during loop creation
+	if (arrangerLoopCreationInProgress && !arrangerLoopExists) {
+		int32_t firstPressSquare = getSquareFromPos(arrangerLoopFirstPressPos, nullptr, xScroll, xZoom);
+		if (firstPressSquare >= 0 && firstPressSquare < renderWidth) {
+			imageThisRow[firstPressSquare] = colours::white;
+			if (thisOccupancyMask) {
+				thisOccupancyMask[firstPressSquare] = 64;
+			}
+		}
+	}
+
+	// Render the loop handle with rainbow colors if it exists
+	if (arrangerLoopExists) {
+		int32_t loopStartSquare = getSquareFromPos(arrangerLoopStart, nullptr, xScroll, xZoom);
+		int32_t loopEndSquare = getSquareFromPos(arrangerLoopEnd, nullptr, xScroll, xZoom);
+
+		// Clamp to render width
+		if (loopStartSquare < 0)
+			loopStartSquare = 0;
+		if (loopStartSquare >= renderWidth)
+			loopStartSquare = renderWidth - 1;
+		if (loopEndSquare < 0)
+			loopEndSquare = 0;
+		if (loopEndSquare >= renderWidth)
+			loopEndSquare = renderWidth - 1; // Create rainbow colors for the loop handle
+		for (int32_t x = loopStartSquare; x <= loopEndSquare; x++) {
+			// Create a rainbow effect based on position within the loop
+			float position = (float)(x - loopStartSquare) / std::max((int32_t)1, loopEndSquare - loopStartSquare);
+			RGB rainbowColor = getRainbowColor(position);
+			imageThisRow[x] = rainbowColor;
+			if (thisOccupancyMask) {
+				thisOccupancyMask[x] = 64;
+			}
+		}
+	}
+}
+
+RGB ArrangerView::getRainbowColor(float position) {
+	// Create rainbow colors based on HSV color space
+	// position should be between 0.0 and 1.0
+	position = std::max(0.0f, std::min(1.0f, position));
+
+	float hue = position * 360.0f; // Full rainbow spectrum
+	float saturation = 1.0f;
+	float value = 1.0f;
+
+	// Convert HSV to RGB
+	float c = value * saturation;
+	float x = c * (1.0f - std::abs(std::fmod(hue / 60.0f, 2.0f) - 1.0f));
+	float m = value - c;
+
+	float r, g, b;
+	if (hue < 60) {
+		r = c;
+		g = x;
+		b = 0;
+	}
+	else if (hue < 120) {
+		r = x;
+		g = c;
+		b = 0;
+	}
+	else if (hue < 180) {
+		r = 0;
+		g = c;
+		b = x;
+	}
+	else if (hue < 240) {
+		r = 0;
+		g = x;
+		b = c;
+	}
+	else if (hue < 300) {
+		r = x;
+		g = 0;
+		b = c;
+	}
+	else {
+		r = c;
+		g = 0;
+		b = x;
+	}
+
+	r = (r + m) * 255.0f;
+	g = (g + m) * 255.0f;
+	b = (b + m) * 255.0f;
+
+	return RGB(static_cast<uint8_t>(r), static_cast<uint8_t>(g), static_cast<uint8_t>(b));
+}
+
 bool ArrangerView::renderMainPads(uint32_t whichRows, RGB image[][kDisplayWidth + kSideBarWidth],
                                   uint8_t occupancyMask[][kDisplayWidth + kSideBarWidth], bool drawUndefinedArea) {
 	if (!image) {
@@ -2223,7 +2402,13 @@ bool ArrangerView::renderMainPads(uint32_t whichRows, RGB image[][kDisplayWidth 
 bool ArrangerView::renderRow(ModelStack* modelStack, int32_t yDisplay, int32_t xScroll, uint32_t xZoom,
                              RGB* imageThisRow, uint8_t thisOccupancyMask[], int32_t renderWidth) {
 
-	Output* output = outputsOnScreen[yDisplay];
+	// Handle loop row (y = 0)
+	if (yDisplay == 0) {
+		renderLoopRow(xScroll, xZoom, imageThisRow, thisOccupancyMask, renderWidth);
+		return true;
+	}
+
+	Output* output = outputsOnScreen[yDisplay - 1]; // Shift down by 1 to account for loop row
 
 	if (!output) {
 
