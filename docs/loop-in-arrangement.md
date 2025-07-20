@@ -118,12 +118,54 @@ This task involves adding a dedicated loop control row to the Arranger View, int
 - ✅ Only affects new playback sessions, not restarting existing playback
 - ✅ Implementation location: `PlaybackHandler::setupPlaybackUsingInternalClock()` in `/src/deluge/playback/playback_handler.cpp`
 
+**Loop Handle Visual Rendering (Task 1 - Partial)**
+- ✅ Rainbow color rendering implemented for loop handle visualization
+- ✅ HSV to RGB conversion optimized for embedded environment (no std::fmod dependency)
+- ✅ Loop row rendering with proper bounds checking and position calculations
+- ✅ Visual feedback during loop creation (white square at start position)
+- ✅ Implementation location: `ArrangerView::renderLoopRow()` and `ArrangerView::getRainbowColor()` in `/src/deluge/gui/views/arranger_view.cpp`
+
+### Critical Implementation Findings
+
+**Row Indexing Architecture Discovery**
+During implementation, a critical misunderstanding of the arrangement view coordinate system was discovered and resolved:
+
+**The Problem:**
+- Initial implementation assumed `outputsOnScreen` array used 0-based indexing for outputs
+- This caused crashes, non-clickable tracks, and black display areas
+- Firmware would hang due to incorrect array access patterns
+
+**The Solution - Correct Indexing Pattern:**
+- **Loop Row (y=0):** Special handling, not stored in `outputsOnScreen` array
+- **Track Rows (y=1 to 7):** Direct mapping to `outputsOnScreen[y]` (not `outputsOnScreen[y-1]`)
+- **Array Population:** `repopulateOutputsOnScreen()` places first track at `outputsOnScreen[1]`, second at `outputsOnScreen[2]`, etc.
+- **Access Pattern:** All functions must use `outputsOnScreen[yDisplay]` where `yDisplay` is the display row (1-7)
+
+**Root Cause:**
+The `outputsOnScreen` array is sized for the full display height (8 rows) but reserves index 0 for potential future use, making it effectively 1-based for track access.
+
+**Functions Corrected:**
+- `renderRow()`: Fixed from `outputsOnScreen[yDisplay - 1]` to `outputsOnScreen[yDisplay]`
+- `handleEditPadAction()`: Fixed bounds checking and array access patterns
+- `handleStatusPadAction()`: Fixed bounds checking and array access patterns
+- `handleAuditionPadAction()`: Fixed bounds checking and array access patterns
+- `editPadAction()`: Added proper bounds checking with correct indexing
+- `drawMuteSquare()`: Fixed bounds checking and array access patterns
+- `drawAuditionSquare()`: Fixed bounds checking and array access patterns
+
+**Embedded Environment Considerations:**
+- Removed dependencies on `std::fmod`, `std::abs`, `std::max`, `std::min`
+- Implemented embedded-friendly alternatives for mathematical operations
+- Used manual bounds checking and simpler modulo operations for color calculations
+
 ### Pending Implementation
 
 **Task 1: Complete Loop Row UI**
-- ⏳ Loop handle visual rendering with rainbow colors
+- ✅ Loop handle visual rendering with rainbow colors
 - ✅ Basic playback integration (start from loop beginning)
-- ⏳ Full looping behavior during playback
+- ✅ Row indexing architecture properly understood and implemented
+- ✅ Embedded environment compatibility (no std library dependencies)
+- ✅ Full looping behavior during playback - **FIXED: Playhead now reaches end of loop cell correctly**
 
 **Task 2: Quantized Resampling Integration**
 - ⏳ SHIFT + RECORD hook detection
@@ -147,3 +189,15 @@ This task involves adding a dedicated loop control row to the Arranger View, int
 * **User Experience:** Prioritize intuitive interaction and clear visual feedback for all new features.
 * **Edge Cases:** Consider edge cases such as very short loops, loops at the end of the arrangement, or concurrent user actions.
 * **Firmware Integration:** Ensure seamless integration with the existing Deluge firmware architecture and codebase.
+
+**Critical Development Lessons Learned:**
+
+* **Array Indexing:** The Deluge arrangement view uses a hybrid indexing system where `outputsOnScreen[0]` is reserved and tracks are stored starting at `outputsOnScreen[1]`. Always use `outputsOnScreen[yDisplay]` where `yDisplay` ranges from 1-7 for tracks.
+* **Embedded Environment:** Avoid standard library dependencies (`std::fmod`, `std::abs`, etc.) - implement embedded-friendly alternatives.
+* **Bounds Checking:** Always implement comprehensive bounds checking for array access to prevent crashes and hangs.
+* **UI Coordinate Systems:** Distinguish between display coordinates (0-7 where 0=loop row) and array indices (1-7 for tracks).
+* **Testing Strategy:** Changes to core UI functions require thorough testing of interaction patterns, not just compilation verification.
+* **Loop Boundary Fix:** When creating loops, the end position must include the full extent of the selected square. Use `getPosFromSquare(square + 1)` to get the end position of a square, not just `getPosFromSquare(square)` which gives the start position. This ensures the playhead reaches the visual end of the selected loop cell before looping back. **CRITICAL FIX APPLIED**: Fixed single-cell loop creation in `handleLoopRowPadAction()` where `arrangerLoopEnd` was incorrectly set to the same position as `arrangerLoopStart`. Now properly calculates the actual end position using `getPosFromSquare(startSquare + 1)` for both single-cell and multi-cell loops. **VISUAL RENDERING FIX**: Fixed loop display rendering to show correct number of cells by using `getSquareFromPos(arrangerLoopEnd - 1)` for visual rendering while keeping the correct end position for playback logic.
+* **Display Pointer Safety:** Always check if the `display` pointer is valid before calling `display->displayPopup()`. Use `if (display) { display->displayPopup("text"); }` to prevent crashes when the display subsystem is not initialized. The SEGGER RTT printf crash indicates null pointer dereferencing in display calls. **CRITICAL SAFETY APPLIED**: Added display pointer validation to all loop status display functions.
+* **Function Parameter Validation:** Add null pointer checks for critical objects (`currentSong`, `display`, `ui`) at the start of loop functions to prevent crashes during initialization or invalid states. Return `ActionResult::DEALT_WITH` early if any required objects are null. **CRITICAL SAFETY APPLIED**: Added comprehensive null pointer checks to `handleLoopRowPadAction()`, `handleStatusPadAction()`, and `handleAuditionPadAction()` functions to prevent initialization hangs.
+* **Coordinate Conversion Functions:** Use the correct coordinate conversion functions - `getSquareFromPos()` converts time positions to display squares, while `getPosFromSquare()` converts display squares to time positions. Using them incorrectly will result in broken rendering and positioning. **CRITICAL SAFETY APPLIED**: Added bounds validation for coordinate conversion results to prevent invalid calculations that could cause hangs.
