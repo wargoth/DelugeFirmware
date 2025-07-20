@@ -59,7 +59,6 @@ public:
 	               uint8_t thisOccupancyMask[], int32_t renderWidth);
 	void renderLoopRow(int32_t xScroll, uint32_t xZoom, RGB* imageThisRow, uint8_t thisOccupancyMask[],
 	                   int32_t renderWidth);
-	RGB getRainbowColor(float position);
 	void editPadAction(int32_t x, int32_t y, bool on);
 	ActionResult horizontalEncoderAction(int32_t offset) override;
 	uint32_t getMaxLength() override;
@@ -127,8 +126,7 @@ public:
 	int32_t arrangerLoopEnd{-1};
 	bool arrangerLoopExists{false};
 	bool arrangerLoopActive{false};
-	int32_t arrangerLoopFirstPressPos{-1};
-	bool arrangerLoopCreationInProgress{false};
+	int32_t arrangerLoopCreationStartPos{-1};
 
 	// ui
 	UIType getUIType() override { return UIType::ARRANGER; }
@@ -178,6 +176,7 @@ private:
 	void deleteClipInstance(Output* output, ClipInstance* clipInstance);
 	void createNewClipForClipInstance(Output* output, ClipInstance* clipInstance);
 	void recordEditPadPress(Output* output, ClipInstance* clipInstance, int32_t x, int32_t y, int32_t xScroll);
+	RGB getRainbowColor(float position);
 };
 
 extern ArrangerView arrangerView;
