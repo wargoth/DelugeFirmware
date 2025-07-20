@@ -1114,7 +1114,7 @@ ActionResult ArrangerView::handleLoopRowPadAction(int32_t x, int32_t y, int32_t 
 			currentUIMode = UI_MODE_NONE;
 			arrangerLoopCreationStartPos = -1;
 
-			uiNeedsRendering(this, 1, 0); // Redraw loop row
+			uiNeedsRendering(this, 1, 1); // Redraw loop row in both main grid and sidebar
 		}
 	}
 	else {
@@ -1147,7 +1147,7 @@ ActionResult ArrangerView::handleLoopRowPadAction(int32_t x, int32_t y, int32_t 
 			currentUIMode = UI_MODE_NONE;
 			arrangerLoopCreationStartPos = -1;
 
-			uiNeedsRendering(this, 1, 0); // Redraw loop row
+			uiNeedsRendering(this, 1, 1); // Redraw loop row in both main grid and sidebar
 		}
 	}
 
