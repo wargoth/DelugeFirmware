@@ -41,6 +41,7 @@ extern "C" {}
 Arrangement arrangement{};
 
 Arrangement::Arrangement() {
+	previousProcessedPos = -1;
 }
 
 // Call this *before* resetPlayPos
@@ -683,12 +684,14 @@ void Arrangement::checkAndHandleArrangerLoop() {
 	}
 
 	// Check if we've passed the loop end point during normal playback progression
-	// Don't jump backwards if we're already past the loop (prevents jarring jumps when creating loops behind playhead)
 	if (lastProcessedPos >= arrangerView.arrangerLoopEnd) {
-		// Only loop back if we naturally reached the end (playhead was advancing forward)
-		// Don't loop if we're already significantly past the loop end (indicates loop created behind us)
-		int32_t loopLength = arrangerView.arrangerLoopEnd - arrangerView.arrangerLoopStart;
-		if (lastProcessedPos - arrangerView.arrangerLoopEnd < loopLength) {
+		// Only loop back if this is a natural progression (we were recently before the loop end)
+		// This prevents jarring jumps when loops are created behind the current playhead position
+		bool naturalProgression = (previousProcessedPos != -1 && previousProcessedPos < arrangerView.arrangerLoopEnd
+		                           && lastProcessedPos >= arrangerView.arrangerLoopEnd);
+
+		// Only jump to loop start if this was natural forward progression
+		if (naturalProgression) {
 			// Reset to loop start
 			int32_t newPos = arrangerView.arrangerLoopStart;
 			resetPlayPos(newPos, false);
@@ -709,4 +712,7 @@ void Arrangement::checkAndHandleArrangerLoop() {
 			}
 		}
 	}
+
+	// Always update previousProcessedPos for next check
+	previousProcessedPos = lastProcessedPos;
 }

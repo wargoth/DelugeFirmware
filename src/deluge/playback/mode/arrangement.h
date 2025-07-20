@@ -57,6 +57,7 @@ public:
 
 	int32_t lastProcessedPos;
 	int32_t playbackStartedAtPos;
+	int32_t previousProcessedPos; // Track previous position for natural loop progression detection
 };
 
 extern Arrangement arrangement;
