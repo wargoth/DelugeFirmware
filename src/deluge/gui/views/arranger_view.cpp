@@ -1032,40 +1032,55 @@ ActionResult ArrangerView::handleEditPadAction(int32_t x, int32_t y, int32_t vel
 }
 
 ActionResult ArrangerView::handleLoopRowPadAction(int32_t x, int32_t y, int32_t velocity) {
-	if (!velocity) {
-		return ActionResult::DEALT_WITH; // Only handle pad press, not release
-	}
-
 	int32_t pressPosition = getPosFromSquare(x);
 
-	// Two-press loop creation logic
-	if (!arrangerLoopExists && !arrangerLoopCreationInProgress) {
-		// First press - start loop creation
-		arrangerLoopFirstPressPos = pressPosition;
-		arrangerLoopCreationInProgress = true;
-		currentUIMode = UI_MODE_LOOP_CREATION_FIRST_PRESS;
-		uiNeedsRendering(this, 1, 0); // Redraw loop row
+	if (velocity) {
+		// Pad press - start loop creation or extend existing creation
+		if (currentUIMode != UI_MODE_LOOP_CREATION_HOLDING_START) {
+			// First press - start holding for loop creation
+			arrangerLoopCreationStartPos = pressPosition;
+			currentUIMode = UI_MODE_LOOP_CREATION_HOLDING_START;
+		}
+		else {
+			// Second press while holding start - set end position and create loop
+			int32_t startPos = arrangerLoopCreationStartPos;
+			int32_t endPos = pressPosition;
+
+			// Ensure start is before end
+			if (startPos > endPos) {
+				int32_t temp = startPos;
+				startPos = endPos;
+				endPos = temp;
+			}
+
+			// Create the loop
+			arrangerLoopStart = startPos;
+			arrangerLoopEnd = endPos;
+			arrangerLoopExists = true;
+			arrangerLoopActive = true; // Becomes active after creation
+
+			// Reset creation state
+			currentUIMode = UI_MODE_NONE;
+			arrangerLoopCreationStartPos = -1;
+
+			uiNeedsRendering(this, 1, 0); // Redraw loop row
+		}
 	}
-	else if (!arrangerLoopExists && arrangerLoopCreationInProgress) {
-		// Second press - complete loop creation
-		arrangerLoopStart = (pressPosition < arrangerLoopFirstPressPos) ? pressPosition : arrangerLoopFirstPressPos;
-		arrangerLoopEnd = (pressPosition > arrangerLoopFirstPressPos) ? pressPosition : arrangerLoopFirstPressPos;
-		arrangerLoopExists = true;
-		arrangerLoopActive = false; // Created but not active by default
-		arrangerLoopCreationInProgress = false;
-		currentUIMode = UI_MODE_NONE;
-		uiNeedsRendering(this, 1, 0); // Redraw loop row
-	}
-	else if (arrangerLoopExists) {
-		// Loop exists - remove it
-		arrangerLoopExists = false;
-		arrangerLoopActive = false;
-		arrangerLoopCreationInProgress = false;
-		arrangerLoopFirstPressPos = -1;
-		arrangerLoopStart = -1;
-		arrangerLoopEnd = -1;
-		currentUIMode = UI_MODE_NONE;
-		uiNeedsRendering(this, 1, 0); // Redraw loop row
+	else {
+		// Pad release
+		if (currentUIMode == UI_MODE_LOOP_CREATION_HOLDING_START) {
+			// Released without setting end position - create single-cell loop
+			arrangerLoopStart = arrangerLoopCreationStartPos;
+			arrangerLoopEnd = arrangerLoopCreationStartPos;
+			arrangerLoopExists = true;
+			arrangerLoopActive = true; // Becomes active after creation
+
+			// Reset creation state
+			currentUIMode = UI_MODE_NONE;
+			arrangerLoopCreationStartPos = -1;
+
+			uiNeedsRendering(this, 1, 0); // Redraw loop row
+		}
 	}
 
 	return ActionResult::DEALT_WITH;
@@ -1077,6 +1092,13 @@ ActionResult ArrangerView::handleStatusPadAction(int32_t y, int32_t velocity, UI
 		if (velocity && arrangerLoopExists) {
 			// Toggle loop activation
 			arrangerLoopActive = !arrangerLoopActive;
+			// Display current status after toggle
+			if (arrangerLoopActive) {
+				display->displayPopup("ON");
+			}
+			else {
+				display->displayPopup("OFF");
+			}
 			uiNeedsRendering(ui, 0, 1); // Redraw loop row
 		}
 		return ActionResult::DEALT_WITH;
@@ -1214,9 +1236,20 @@ regularMutePadPress:
 }
 
 ActionResult ArrangerView::handleAuditionPadAction(int32_t y, int32_t velocity, UI* ui) {
-	// Handle loop row audition pad (y = 0) - always yellow, non-functional
+	// Handle loop row audition pad (y = 0) - display loop status
 	if (y == 0) {
-		// Do nothing - loop row audition pad is non-functional
+		if (velocity) {
+			// Display "LOOP" text followed by ON/OFF status
+			if (arrangerLoopExists && arrangerLoopActive) {
+				display->displayPopup("ON");
+			}
+			else if (arrangerLoopExists && !arrangerLoopActive) {
+				display->displayPopup("OFF");
+			}
+			else {
+				display->displayPopup("LOOP");
+			}
+		}
 		return ActionResult::DEALT_WITH;
 	}
 
@@ -2275,13 +2308,13 @@ void ArrangerView::renderLoopRow(int32_t xScroll, uint32_t xZoom, RGB* imageThis
 		}
 	}
 
-	// Show first press position during loop creation
-	if (arrangerLoopCreationInProgress && !arrangerLoopExists) {
-		int32_t firstPressSquare = getSquareFromPos(arrangerLoopFirstPressPos, nullptr, xScroll, xZoom);
-		if (firstPressSquare >= 0 && firstPressSquare < renderWidth) {
-			imageThisRow[firstPressSquare] = colours::white;
+	// Show start position during loop creation (when holding start)
+	if (currentUIMode == UI_MODE_LOOP_CREATION_HOLDING_START && !arrangerLoopExists) {
+		int32_t startPressSquare = getSquareFromPos(arrangerLoopCreationStartPos, nullptr, xScroll, xZoom);
+		if (startPressSquare >= 0 && startPressSquare < renderWidth) {
+			imageThisRow[startPressSquare] = colours::white;
 			if (thisOccupancyMask) {
-				thisOccupancyMask[firstPressSquare] = 64;
+				thisOccupancyMask[startPressSquare] = 64;
 			}
 		}
 	}
@@ -2299,10 +2332,20 @@ void ArrangerView::renderLoopRow(int32_t xScroll, uint32_t xZoom, RGB* imageThis
 		if (loopEndSquare < 0)
 			loopEndSquare = 0;
 		if (loopEndSquare >= renderWidth)
-			loopEndSquare = renderWidth - 1; // Create rainbow colors for the loop handle
+			loopEndSquare = renderWidth - 1;
+
+		// Ensure loopStartSquare <= loopEndSquare to prevent infinite loop
+		if (loopStartSquare > loopEndSquare) {
+			int32_t temp = loopStartSquare;
+			loopStartSquare = loopEndSquare;
+			loopEndSquare = temp;
+		}
+
+		// Create rainbow colors for the loop handle
 		for (int32_t x = loopStartSquare; x <= loopEndSquare; x++) {
 			// Create a rainbow effect based on position within the loop
-			float position = (float)(x - loopStartSquare) / std::max((int32_t)1, loopEndSquare - loopStartSquare);
+			int32_t range = loopEndSquare - loopStartSquare;
+			float position = (range > 0) ? (float)(x - loopStartSquare) / (float)range : 0.0f;
 			RGB rainbowColor = getRainbowColor(position);
 			imageThisRow[x] = rainbowColor;
 			if (thisOccupancyMask) {
