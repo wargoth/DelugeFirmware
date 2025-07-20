@@ -85,6 +85,21 @@ This task involves adding a dedicated loop control row to the Arranger View, int
 
 ## Implementation Status
 
+### Summary of Key Achievements
+
+**Loop Playback Start Position (Task 1 - Partial)**
+- ✅ Smart loop engagement without jarring jumps
+- ✅ When playback starts with active loop → Does NOT jump if playhead is ahead of loop end
+- ✅ When creating loop behind playhead during stopped playback → No jarring jump (playhead is ahead of loop end)
+- ✅ When creating loop behind playhead during active playback → No immediate backwards jump (prevented by runtime loop check)
+- ✅ When creating loop ahead/containing playhead → Jumps to loop start (playhead is before loop end)
+- ✅ Normal looping behavior continues when playhead naturally reaches loop end during playback
+- ✅ No automatic loop activation/deactivation complexity
+- ✅ Integration with existing playback priority system
+- ✅ Implementation locations:
+  - `PlaybackHandler::setupPlaybackUsingInternalClock()` in `/src/deluge/playback/playback_handler.cpp` (smart jump logic based on position)
+  - `Arrangement::checkAndHandleArrangerLoop()` in `/src/deluge/playback/mode/arrangement.cpp` (runtime loop boundary checking)
+
 ### Completed Features
 
 **Loop Row Status Display Functionality (Task 1 - Partial)**
@@ -201,3 +216,4 @@ The `outputsOnScreen` array is sized for the full display height (8 rows) but re
 * **Display Pointer Safety:** Always check if the `display` pointer is valid before calling `display->displayPopup()`. Use `if (display) { display->displayPopup("text"); }` to prevent crashes when the display subsystem is not initialized. The SEGGER RTT printf crash indicates null pointer dereferencing in display calls. **CRITICAL SAFETY APPLIED**: Added display pointer validation to all loop status display functions.
 * **Function Parameter Validation:** Add null pointer checks for critical objects (`currentSong`, `display`, `ui`) at the start of loop functions to prevent crashes during initialization or invalid states. Return `ActionResult::DEALT_WITH` early if any required objects are null. **CRITICAL SAFETY APPLIED**: Added comprehensive null pointer checks to `handleLoopRowPadAction()`, `handleStatusPadAction()`, and `handleAuditionPadAction()` functions to prevent initialization hangs.
 * **Coordinate Conversion Functions:** Use the correct coordinate conversion functions - `getSquareFromPos()` converts time positions to display squares, while `getPosFromSquare()` converts display squares to time positions. Using them incorrectly will result in broken rendering and positioning. **CRITICAL SAFETY APPLIED**: Added bounds validation for coordinate conversion results to prevent invalid calculations that could cause hangs.
+* **Smooth Loop Engagement:** Implemented comprehensive solution to prevent jarring jumps when creating loops. **MUSICAL BEHAVIOR IMPROVED**: Modified `PlaybackHandler::setupPlaybackUsingInternalClock()` with the rule "do not jump if playhead is ahead of loop end". When the current playback position is ahead of (past) the loop end, playback starts from the current position instead of jumping to the loop start. **CRITICAL RUNTIME FIX**: Also modified `Arrangement::checkAndHandleArrangerLoop()` to prevent immediate backwards jumps during active playback when loops are created behind the playhead. The function now checks if the playhead is significantly past the loop end (more than one loop length away) and avoids jumping in such cases. This dual approach eliminates jarring jumps both at playback start and during active playback, while preserving expected loop behavior for loops created ahead of or containing the playhead. Normal looping continues to work when the playhead naturally reaches the loop end during forward playback progression.
