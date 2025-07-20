@@ -617,14 +617,20 @@ void ArrangerView::drawMuteSquare(int32_t yDisplay, RGB thisImage[]) {
 		return;
 	}
 
+	// BOUNDS CHECK: Use bounds-safe array access
+	Output* output = nullptr;
+	if (yDisplay >= 1 && yDisplay < kDisplayHeight) {
+		output = outputsOnScreen[yDisplay];
+	}
+
 	// If no Instrument, black
-	if (!outputsOnScreen[yDisplay - 1]) { // Shift down by 1 to account for loop row
+	if (!output) {
 		thisColour = colours::black;
 	}
 
-	else if (currentUIMode == UI_MODE_VIEWING_RECORD_ARMING && outputsOnScreen[yDisplay - 1]->armedForRecording) {
+	else if (currentUIMode == UI_MODE_VIEWING_RECORD_ARMING && output->armedForRecording) {
 		if (blinkOn) {
-			if (outputsOnScreen[yDisplay - 1]->wantsToBeginArrangementRecording()) {
+			if (output->wantsToBeginArrangementRecording()) {
 				thisColour = {255, 1, 0};
 			}
 			else {
@@ -637,7 +643,7 @@ void ArrangerView::drawMuteSquare(int32_t yDisplay, RGB thisImage[]) {
 	}
 
 	// Soloing - blue
-	else if (outputsOnScreen[yDisplay - 1]->soloingInArrangementMode) {
+	else if (output->soloingInArrangementMode) {
 		thisColour = menu_item::soloColourMenu.getRGB();
 	}
 
@@ -645,7 +651,7 @@ void ArrangerView::drawMuteSquare(int32_t yDisplay, RGB thisImage[]) {
 	else {
 
 		// Muted - yellow
-		if (outputsOnScreen[yDisplay - 1]->mutedInArrangementMode) {
+		if (output->mutedInArrangementMode) {
 			thisColour = menu_item::mutedColourMenu.getRGB();
 		}
 
@@ -670,7 +676,12 @@ void ArrangerView::drawAuditionSquare(int32_t yDisplay, RGB thisImage[]) {
 	}
 
 	if (view.midiLearnFlashOn) {
-		Output* output = outputsOnScreen[yDisplay - 1]; // Shift down by 1 to account for loop row
+		// BOUNDS CHECK: Ensure array access is within bounds
+		if (yDisplay < 1 || yDisplay >= kDisplayHeight) {
+			goto drawNormally;
+		}
+
+		Output* output = outputsOnScreen[yDisplay];
 
 		if (!output || output->type == OutputType::AUDIO) {
 			goto drawNormally;
@@ -1006,19 +1017,27 @@ ActionResult ArrangerView::handleEditPadAction(int32_t x, int32_t y, int32_t vel
 		return handleLoopRowPadAction(x, y, velocity);
 	}
 
-	Output* output = outputsOnScreen[y - 1]; // Shift down by 1 to account for loop row
+	// BOUNDS CHECK: Ensure array access is within bounds
+	if (y < 1 || y >= kDisplayHeight) {
+		return ActionResult::DEALT_WITH;
+	}
+
+	Output* output = outputsOnScreen[y];
 
 	if (currentUIMode == UI_MODE_HOLDING_ARRANGEMENT_ROW_AUDITION) {
 		if (velocity) {
 			// NAME shortcut
 			if (x == 11 && y == 5) {
-				Output* output = outputsOnScreen[yPressedEffective - 1];
-				if (output && output->type != OutputType::CV) {
-					endAudition(output);
-					currentUIMode = UI_MODE_NONE;
-					renameOutputUI.output = output;
-					openUI(&renameOutputUI);
-					uiNeedsRendering(this, 0, 0xFFFFFFFF); // Stop audition pad being illuminated
+				// BOUNDS CHECK for yPressedEffective access
+				if (yPressedEffective >= 1 && yPressedEffective < kDisplayHeight) {
+					Output* output = outputsOnScreen[yPressedEffective];
+					if (output && output->type != OutputType::CV) {
+						endAudition(output);
+						currentUIMode = UI_MODE_NONE;
+						renameOutputUI.output = output;
+						openUI(&renameOutputUI);
+						uiNeedsRendering(this, 0, 0xFFFFFFFF); // Stop audition pad being illuminated
+					}
 				}
 			}
 		}
@@ -1104,7 +1123,12 @@ ActionResult ArrangerView::handleStatusPadAction(int32_t y, int32_t velocity, UI
 		return ActionResult::DEALT_WITH;
 	}
 
-	Output* output = outputsOnScreen[y - 1]; // Shift down by 1 to account for loop row
+	// BOUNDS CHECK: Ensure array access is within bounds
+	if (y < 1 || y >= kDisplayHeight) {
+		return ActionResult::DEALT_WITH;
+	}
+
+	Output* output = outputsOnScreen[y];
 
 	if (!output) {
 		return ActionResult::DEALT_WITH;
@@ -1253,7 +1277,12 @@ ActionResult ArrangerView::handleAuditionPadAction(int32_t y, int32_t velocity, 
 		return ActionResult::DEALT_WITH;
 	}
 
-	Output* output = outputsOnScreen[y - 1]; // Shift down by 1 to account for loop row
+	// BOUNDS CHECK: Ensure array access is within bounds
+	if (y < 1 || y >= kDisplayHeight) {
+		return ActionResult::DEALT_WITH;
+	}
+
+	Output* output = outputsOnScreen[y];
 
 	switch (currentUIMode) {
 	case UI_MODE_MIDI_LEARN:
@@ -1360,7 +1389,21 @@ void ArrangerView::rememberInteractionWithClipInstance(int32_t yDisplay, ClipIns
 }
 
 void ArrangerView::editPadAction(int32_t x, int32_t y, bool on) {
+	// Handle loop row (y = 0) - no editing allowed
+	if (y == 0) {
+		return;
+	}
+
+	// BOUNDS CHECK: Ensure array access is within bounds
+	if (y < 1 || y >= kDisplayHeight) {
+		return;
+	}
+
 	Output* output = outputsOnScreen[y];
+	if (!output) {
+		return;
+	}
+
 	uint32_t xScroll = currentSong->xScroll[NAVIGATION_ARRANGEMENT];
 
 	// Shift button pressed - clone ClipInstance to white / unique
@@ -2358,7 +2401,10 @@ void ArrangerView::renderLoopRow(int32_t xScroll, uint32_t xZoom, RGB* imageThis
 RGB ArrangerView::getRainbowColor(float position) {
 	// Create rainbow colors based on HSV color space
 	// position should be between 0.0 and 1.0
-	position = std::max(0.0f, std::min(1.0f, position));
+	if (position < 0.0f)
+		position = 0.0f;
+	if (position > 1.0f)
+		position = 1.0f;
 
 	float hue = position * 360.0f; // Full rainbow spectrum
 	float saturation = 1.0f;
@@ -2366,39 +2412,47 @@ RGB ArrangerView::getRainbowColor(float position) {
 
 	// Convert HSV to RGB
 	float c = value * saturation;
-	float x = c * (1.0f - std::abs(std::fmod(hue / 60.0f, 2.0f) - 1.0f));
+	// Simpler modulo operation instead of std::fmod
+	float hue_sector = hue / 60.0f;
+	int32_t sector = (int32_t)hue_sector;
+	float x = c * (1.0f - ((hue_sector - sector) > 1.0f ? 2.0f - (hue_sector - sector) : (hue_sector - sector)));
+	if (x < 0.0f)
+		x = -x; // abs value
+	x = c * (1.0f - x);
 	float m = value - c;
 
 	float r, g, b;
-	if (hue < 60) {
+	switch (sector % 6) {
+	case 0:
 		r = c;
 		g = x;
 		b = 0;
-	}
-	else if (hue < 120) {
+		break;
+	case 1:
 		r = x;
 		g = c;
 		b = 0;
-	}
-	else if (hue < 180) {
+		break;
+	case 2:
 		r = 0;
 		g = c;
 		b = x;
-	}
-	else if (hue < 240) {
+		break;
+	case 3:
 		r = 0;
 		g = x;
 		b = c;
-	}
-	else if (hue < 300) {
+		break;
+	case 4:
 		r = x;
 		g = 0;
 		b = c;
-	}
-	else {
+		break;
+	default: // case 5
 		r = c;
 		g = 0;
 		b = x;
+		break;
 	}
 
 	r = (r + m) * 255.0f;
@@ -2440,7 +2494,17 @@ bool ArrangerView::renderRow(ModelStack* modelStack, int32_t yDisplay, int32_t x
 		return true;
 	}
 
-	Output* output = outputsOnScreen[yDisplay - 1]; // Shift down by 1 to account for loop row
+	// BOUNDS CHECK: Ensure array access is within bounds
+	if (yDisplay < 0 || yDisplay >= kDisplayHeight) {
+		// Fill with black if out of bounds
+		const RGB* imageEnd = imageThisRow + renderWidth;
+		for (; imageThisRow < imageEnd; imageThisRow++) {
+			*(imageThisRow) = colours::black;
+		}
+		return true;
+	}
+
+	Output* output = outputsOnScreen[yDisplay];
 
 	if (!output) {
 
