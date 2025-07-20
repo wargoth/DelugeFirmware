@@ -189,8 +189,19 @@ void PlaybackHandler::playButtonPressed(int32_t buttonPressLatency) {
 
 	// If not currently playing
 	if (!playbackState) {
+		// Check if we're starting playback with an active loop (with safety checks)
+		bool startingWithActiveLoop = false;
+		if (currentSong && display) {
+			startingWithActiveLoop = arrangerView.arrangerLoopExists && arrangerView.arrangerLoopActive;
+		}
+
 		setupPlaybackUsingInternalClock(buttonPressLatency);
 		D_PRINTLN("Play");
+
+		// Display "LOOP" feedback if starting with an active loop
+		if (startingWithActiveLoop && display) {
+			display->displayPopup("LOOP");
+		}
 	}
 
 	// Or if currently playing...
@@ -334,11 +345,13 @@ void PlaybackHandler::setupPlaybackUsingInternalClock(int32_t buttonPressLatency
 	bool startFromCurrentScreen = false;
 	bool isArrangementPadPressed = false;
 
+	// Determine if we're in arranger view
+	bool isArrangerView = (rootUI == &arrangerView)
+	                      || (rootUI == &performanceView && currentSong->lastClipInstanceEnteredStartPos != -1)
+	                      || (rootUI == &automationView && automationView.onArrangerView);
+
 	// if we're restarting playback from beginning, do that
 	if (!restartingPlaybackAtBeginning) {
-		bool isArrangerView = (rootUI == &arrangerView)
-		                      || (rootUI == &performanceView && currentSong->lastClipInstanceEnteredStartPos != -1)
-		                      || (rootUI == &automationView && automationView.onArrangerView);
 
 		// second priority - if we're holding pad in arranger, play from that pad
 		isArrangementPadPressed = isArrangerView && isUIModeActive(UI_MODE_HOLDING_ARRANGEMENT_ROW);
@@ -393,6 +406,10 @@ void PlaybackHandler::setupPlaybackUsingInternalClock(int32_t buttonPressLatency
 	// second priority - if you're holding an arranger pad then restart from there
 	else if (isArrangementPadPressed) {
 		newPos = arrangerView.lastInteractedArrangementPos;
+	}
+	// Check if there's an active loop and starting playback - start from loop beginning (regardless of current view)
+	else if (currentSong && arrangerView.arrangerLoopExists && arrangerView.arrangerLoopActive && !restartingPlayback) {
+		newPos = arrangerView.arrangerLoopStart;
 	}
 	// next is <> + play / cross screen + play, or recording into arranger - start from the current left edge scroll
 	// position this is good even for cross screen playback since the last cursor position isn't visible
