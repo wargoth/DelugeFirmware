@@ -1051,7 +1051,21 @@ ActionResult ArrangerView::handleEditPadAction(int32_t x, int32_t y, int32_t vel
 }
 
 ActionResult ArrangerView::handleLoopRowPadAction(int32_t x, int32_t y, int32_t velocity) {
+	// Function Parameter Validation - check for null critical objects
+	if (!currentSong || !display) {
+		return ActionResult::DEALT_WITH;
+	}
+
+	// Bounds checking for coordinate system
+	if (x < 0 || x >= kDisplayWidth || y != 0) {
+		return ActionResult::DEALT_WITH;
+	}
+
 	int32_t pressPosition = getPosFromSquare(x);
+	// Additional bounds checking for position
+	if (pressPosition < 0) {
+		return ActionResult::DEALT_WITH;
+	}
 
 	if (velocity) {
 		// Pad press - start loop creation or extend existing creation
@@ -1065,6 +1079,13 @@ ActionResult ArrangerView::handleLoopRowPadAction(int32_t x, int32_t y, int32_t 
 			int32_t startPos = arrangerLoopCreationStartPos;
 			int32_t endPos = pressPosition;
 
+			// Bounds checking for coordinate values
+			if (startPos < 0 || endPos < 0) {
+				currentUIMode = UI_MODE_NONE;
+				arrangerLoopCreationStartPos = -1;
+				return ActionResult::DEALT_WITH;
+			}
+
 			// Ensure start is before end
 			if (startPos > endPos) {
 				int32_t temp = startPos;
@@ -1072,9 +1093,20 @@ ActionResult ArrangerView::handleLoopRowPadAction(int32_t x, int32_t y, int32_t 
 				endPos = temp;
 			}
 
+			// Get the square for the end position and use getPosFromSquare(square + 1) to get actual end
+			int32_t endSquare = getSquareFromPos(endPos);
+			// Additional bounds checking for square conversion
+			if (endSquare < 0 || endSquare >= 2147483647) {
+				currentUIMode = UI_MODE_NONE;
+				arrangerLoopCreationStartPos = -1;
+				return ActionResult::DEALT_WITH;
+			}
+
+			int32_t actualEndPos = getPosFromSquare(endSquare + 1);
+
 			// Create the loop
 			arrangerLoopStart = startPos;
-			arrangerLoopEnd = endPos;
+			arrangerLoopEnd = actualEndPos;
 			arrangerLoopExists = true;
 			arrangerLoopActive = true; // Becomes active after creation
 
@@ -1089,8 +1121,25 @@ ActionResult ArrangerView::handleLoopRowPadAction(int32_t x, int32_t y, int32_t 
 		// Pad release
 		if (currentUIMode == UI_MODE_LOOP_CREATION_HOLDING_START) {
 			// Released without setting end position - create single-cell loop
+			// Bounds checking for coordinate conversion functions
+			if (arrangerLoopCreationStartPos < 0) {
+				currentUIMode = UI_MODE_NONE;
+				arrangerLoopCreationStartPos = -1;
+				return ActionResult::DEALT_WITH;
+			}
+
+			// Get the x position from the stored start position
+			int32_t startSquare = getSquareFromPos(arrangerLoopCreationStartPos);
+			// Additional bounds checking
+			if (startSquare < 0 || startSquare >= 2147483647) {
+				currentUIMode = UI_MODE_NONE;
+				arrangerLoopCreationStartPos = -1;
+				return ActionResult::DEALT_WITH;
+			}
+
 			arrangerLoopStart = arrangerLoopCreationStartPos;
-			arrangerLoopEnd = arrangerLoopCreationStartPos;
+			// Use getPosFromSquare(square + 1) to get the actual end of the cell
+			arrangerLoopEnd = getPosFromSquare(startSquare + 1);
 			arrangerLoopExists = true;
 			arrangerLoopActive = true; // Becomes active after creation
 
@@ -1106,17 +1155,24 @@ ActionResult ArrangerView::handleLoopRowPadAction(int32_t x, int32_t y, int32_t 
 }
 
 ActionResult ArrangerView::handleStatusPadAction(int32_t y, int32_t velocity, UI* ui) {
+	// Function Parameter Validation - check for null critical objects
+	if (!currentSong || !display || !ui) {
+		return ActionResult::DEALT_WITH;
+	}
+
 	// Handle loop row status pad (y = 0)
 	if (y == 0) {
 		if (velocity && arrangerLoopExists) {
 			// Toggle loop activation
 			arrangerLoopActive = !arrangerLoopActive;
-			// Display current status after toggle
-			if (arrangerLoopActive) {
-				display->displayPopup("ON");
-			}
-			else {
-				display->displayPopup("OFF");
+			// Display current status after toggle - Display Pointer Safety
+			if (display) {
+				if (arrangerLoopActive) {
+					display->displayPopup("ON");
+				}
+				else {
+					display->displayPopup("OFF");
+				}
 			}
 			uiNeedsRendering(ui, 0, 1); // Redraw loop row
 		}
@@ -1260,18 +1316,25 @@ regularMutePadPress:
 }
 
 ActionResult ArrangerView::handleAuditionPadAction(int32_t y, int32_t velocity, UI* ui) {
+	// Function Parameter Validation - check for null critical objects
+	if (!currentSong || !display || !ui) {
+		return ActionResult::DEALT_WITH;
+	}
+
 	// Handle loop row audition pad (y = 0) - display loop status
 	if (y == 0) {
 		if (velocity) {
-			// Display "LOOP" text followed by ON/OFF status
-			if (arrangerLoopExists && arrangerLoopActive) {
-				display->displayPopup("ON");
-			}
-			else if (arrangerLoopExists && !arrangerLoopActive) {
-				display->displayPopup("OFF");
-			}
-			else {
-				display->displayPopup("LOOP");
+			// Display "LOOP" text followed by ON/OFF status - Display Pointer Safety
+			if (display) {
+				if (arrangerLoopExists && arrangerLoopActive) {
+					display->displayPopup("ON");
+				}
+				else if (arrangerLoopExists && !arrangerLoopActive) {
+					display->displayPopup("OFF");
+				}
+				else {
+					display->displayPopup("LOOP");
+				}
 			}
 		}
 		return ActionResult::DEALT_WITH;
@@ -2365,7 +2428,9 @@ void ArrangerView::renderLoopRow(int32_t xScroll, uint32_t xZoom, RGB* imageThis
 	// Render the loop handle with rainbow colors if it exists
 	if (arrangerLoopExists) {
 		int32_t loopStartSquare = getSquareFromPos(arrangerLoopStart, nullptr, xScroll, xZoom);
-		int32_t loopEndSquare = getSquareFromPos(arrangerLoopEnd, nullptr, xScroll, xZoom);
+		// For rendering, we need the square that contains the end position, not the square after it
+		// Since arrangerLoopEnd is the actual end position, we subtract 1 to get the last square to render
+		int32_t loopEndSquare = getSquareFromPos(arrangerLoopEnd - 1, nullptr, xScroll, xZoom);
 
 		// Clamp to render width
 		if (loopStartSquare < 0)
