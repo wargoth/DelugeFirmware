@@ -682,23 +682,29 @@ void Arrangement::checkAndHandleArrangerLoop() {
 		return;
 	}
 
-	// Check if we've passed the loop end point
+	// Check if we've passed the loop end point during normal playback progression
+	// Don't jump backwards if we're already past the loop (prevents jarring jumps when creating loops behind playhead)
 	if (lastProcessedPos >= arrangerView.arrangerLoopEnd) {
-		// Reset to loop start
-		int32_t newPos = arrangerView.arrangerLoopStart;
-		resetPlayPos(newPos, false);
+		// Only loop back if we naturally reached the end (playhead was advancing forward)
+		// Don't loop if we're already significantly past the loop end (indicates loop created behind us)
+		int32_t loopLength = arrangerView.arrangerLoopEnd - arrangerView.arrangerLoopStart;
+		if (lastProcessedPos - arrangerView.arrangerLoopEnd < loopLength) {
+			// Reset to loop start
+			int32_t newPos = arrangerView.arrangerLoopStart;
+			resetPlayPos(newPos, false);
 
-		// Update visual indicators if needed
-		arrangerView.reassessWhetherDoingAutoScroll(newPos);
+			// Update visual indicators if needed
+			arrangerView.reassessWhetherDoingAutoScroll(newPos);
 
-		// Ensure all outputs are properly handled at the new position
-		for (Output* output = currentSong->firstOutput; output; output = output->next) {
-			if (currentSong->isOutputActiveInArrangement(output)) {
-				// Find the clip instance that should be playing at the new position
-				int32_t i = output->clipInstances.search(newPos + 1, LESS);
-				ClipInstance* clipInstance = output->clipInstances.getElement(i);
-				if (clipInstance && clipInstance->pos + clipInstance->length > newPos) {
-					resumeClipInstancePlayback(clipInstance, false, true);
+			// Ensure all outputs are properly handled at the new position
+			for (Output* output = currentSong->firstOutput; output; output = output->next) {
+				if (currentSong->isOutputActiveInArrangement(output)) {
+					// Find the clip instance that should be playing at the new position
+					int32_t i = output->clipInstances.search(newPos + 1, LESS);
+					ClipInstance* clipInstance = output->clipInstances.getElement(i);
+					if (clipInstance && clipInstance->pos + clipInstance->length > newPos) {
+						resumeClipInstancePlayback(clipInstance, false, true);
+					}
 				}
 			}
 		}

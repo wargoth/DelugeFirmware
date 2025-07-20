@@ -407,9 +407,19 @@ void PlaybackHandler::setupPlaybackUsingInternalClock(int32_t buttonPressLatency
 	else if (isArrangementPadPressed) {
 		newPos = arrangerView.lastInteractedArrangementPos;
 	}
-	// Check if there's an active loop and starting playback - start from loop beginning (regardless of current view)
+	// Check if there's an active loop and starting playback - only jump to loop start if current position is before
+	// loop end
 	else if (currentSong && arrangerView.arrangerLoopExists && arrangerView.arrangerLoopActive && !restartingPlayback) {
-		newPos = arrangerView.arrangerLoopStart;
+		// Get current position (scroll position is the default starting position)
+		int32_t currentPos = currentSong->xScroll[navSys];
+		// Only jump to loop start if current position is before the loop end
+		if (currentPos < arrangerView.arrangerLoopEnd) {
+			newPos = arrangerView.arrangerLoopStart;
+		}
+		else {
+			// Stay at current position - we're past the loop already
+			newPos = currentPos;
+		}
 	}
 	// next is <> + play / cross screen + play, or recording into arranger - start from the current left edge scroll
 	// position this is good even for cross screen playback since the last cursor position isn't visible
