@@ -690,8 +690,16 @@ void Arrangement::checkAndHandleArrangerLoop() {
 		bool naturalProgression = (previousProcessedPos != -1 && previousProcessedPos < arrangerView.arrangerLoopEnd
 		                           && lastProcessedPos >= arrangerView.arrangerLoopEnd);
 
-		// Only jump to loop start if this was natural forward progression
-		if (naturalProgression) {
+		// Also prevent jumping if the loop was just activated via mute button
+		bool wasJustActivated = arrangerView.arrangerLoopJustActivated;
+
+		// Clear the flag after checking it
+		if (wasJustActivated) {
+			arrangerView.arrangerLoopJustActivated = false;
+		}
+
+		// Only jump to loop start if this was natural forward progression and not just activated
+		if (naturalProgression && !wasJustActivated) {
 			// Reset to loop start
 			int32_t newPos = arrangerView.arrangerLoopStart;
 			resetPlayPos(newPos, false);
