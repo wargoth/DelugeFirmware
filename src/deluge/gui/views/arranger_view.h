@@ -127,6 +127,7 @@ public:
 	bool arrangerLoopExists{false};
 	bool arrangerLoopActive{false};
 	int32_t arrangerLoopCreationStartPos{-1};
+	bool arrangerLoopJustActivated{false};
 
 	// ui
 	UIType getUIType() override { return UIType::ARRANGER; }

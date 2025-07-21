@@ -1164,7 +1164,14 @@ ActionResult ArrangerView::handleStatusPadAction(int32_t y, int32_t velocity, UI
 	if (y == 0) {
 		if (velocity && arrangerLoopExists) {
 			// Toggle loop activation
+			bool wasActive = arrangerLoopActive;
 			arrangerLoopActive = !arrangerLoopActive;
+
+			// Set flag if we just activated the loop (was inactive, now active)
+			if (!wasActive && arrangerLoopActive) {
+				arrangerLoopJustActivated = true;
+			}
+
 			// Display current status after toggle - Display Pointer Safety
 			if (display) {
 				if (arrangerLoopActive) {
@@ -2417,6 +2424,7 @@ void ArrangerView::renderLoopRow(int32_t xScroll, uint32_t xZoom, RGB* imageThis
 	// Show start position during loop creation (when holding start)
 	if (currentUIMode == UI_MODE_LOOP_CREATION_HOLDING_START && !arrangerLoopExists) {
 		int32_t startPressSquare = getSquareFromPos(arrangerLoopCreationStartPos, nullptr, xScroll, xZoom);
+		// Only render the white square if it's within the visible area
 		if (startPressSquare >= 0 && startPressSquare < renderWidth) {
 			imageThisRow[startPressSquare] = colours::white;
 			if (thisOccupancyMask) {
@@ -2432,21 +2440,22 @@ void ArrangerView::renderLoopRow(int32_t xScroll, uint32_t xZoom, RGB* imageThis
 		// Since arrangerLoopEnd is the actual end position, we subtract 1 to get the last square to render
 		int32_t loopEndSquare = getSquareFromPos(arrangerLoopEnd - 1, nullptr, xScroll, xZoom);
 
-		// Clamp to render width
+		// Check if the loop is completely outside the visible area
+		if (loopEndSquare < 0 || loopStartSquare >= renderWidth) {
+			// Loop is completely outside the visible area, don't render anything
+			return;
+		}
+
+		// Clamp to render width bounds, but only if part of the loop is visible
 		if (loopStartSquare < 0)
 			loopStartSquare = 0;
-		if (loopStartSquare >= renderWidth)
-			loopStartSquare = renderWidth - 1;
-		if (loopEndSquare < 0)
-			loopEndSquare = 0;
 		if (loopEndSquare >= renderWidth)
 			loopEndSquare = renderWidth - 1;
 
-		// Ensure loopStartSquare <= loopEndSquare to prevent infinite loop
+		// Additional safety check - ensure we have valid range
 		if (loopStartSquare > loopEndSquare) {
-			int32_t temp = loopStartSquare;
-			loopStartSquare = loopEndSquare;
-			loopEndSquare = temp;
+			// This shouldn't happen with proper coordinate conversion, but safety first
+			return;
 		}
 
 		// Create rainbow colors for the loop handle
