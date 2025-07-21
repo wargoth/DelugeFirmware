@@ -47,6 +47,7 @@
 #include "model/action/action_logger.h"
 #include "model/clip/audio_clip.h"
 #include "model/clip/clip.h"
+#include "model/clip/clip_instance.h"
 #include "model/clip/instrument_clip.h"
 #include "model/clip/instrument_clip_minder.h"
 #include "model/consequence/consequence.h"
@@ -952,6 +953,31 @@ void PlaybackHandler::actionSwungTick() {
 		currentPlaybackMode->doTickForward(swungTickIncrement);
 
 		if (isEitherClockActive()) { // Occasionally, doTickForward() will stop playback
+
+			// Check for arrangement loops - do this after doTickForward but before other processing
+			if (currentPlaybackMode == &arrangement && currentSong) {
+				if (arrangerView.arrangerLoopExists && arrangerView.arrangerLoopActive) {
+					// Get the actual current playback position including any partial tick progress
+					int32_t currentPos = arrangement.getLivePos();
+
+					if (currentPos >= arrangerView.arrangerLoopEnd) {
+						// Jump back to loop start
+						int32_t newPos = arrangerView.arrangerLoopStart;
+
+						// Reset position and ensure all clips are properly resumed
+						currentPlaybackMode->resetPlayPos(newPos,
+						                                  true); // Set doingComplete=true to properly resume clips
+
+						// Force immediate re-evaluation of all events by setting next event to 0
+						// This ensures that any notes that should be playing at the new position get processed
+						// immediately
+						swungTicksTilNextEvent = 0;
+
+						// Update visual indicators
+						arrangerView.reassessWhetherDoingAutoScroll(newPos);
+					}
+				}
+			}
 
 			// If we swapped song on just a swung tick that wasn't concurrent with a timer tick (unusual), we need
 			// to go do some stuff that would normally happen as part of the timer tick
