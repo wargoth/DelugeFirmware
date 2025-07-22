@@ -53,11 +53,9 @@ public:
 	int32_t getLivePos(uint32_t* timeRemainder = nullptr);
 	void endAnyLinearRecording();
 	bool shouldLoopArrangement();
-	void checkAndHandleArrangerLoop();
 
 	int32_t lastProcessedPos;
 	int32_t playbackStartedAtPos;
-	int32_t previousProcessedPos; // Track previous position for natural loop progression detection
 };
 
 extern Arrangement arrangement;
