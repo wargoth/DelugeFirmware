@@ -500,6 +500,13 @@ void ArrangerView::clearArrangement() {
 		}
 	}
 
+	// Clear loop and reset related state
+	arrangerLoopExists = false;
+	arrangerLoopActive = false;
+	arrangerLoopPlayheadInside = false; // Reset playhead inside state when clearing arrangement
+	arrangerLoopStart = -1;
+	arrangerLoopEnd = -1;
+
 	uiNeedsRendering(this, 0xFFFFFFFF, 0);
 }
 
@@ -1108,7 +1115,8 @@ ActionResult ArrangerView::handleLoopRowPadAction(int32_t x, int32_t y, int32_t 
 			arrangerLoopStart = startPos;
 			arrangerLoopEnd = actualEndPos;
 			arrangerLoopExists = true;
-			arrangerLoopActive = true; // Becomes active after creation
+			arrangerLoopActive = true;          // Becomes active after creation
+			arrangerLoopPlayheadInside = false; // Reset state - will be set when playhead enters loop region
 
 			// Reset creation state
 			currentUIMode = UI_MODE_NONE;
@@ -1141,7 +1149,8 @@ ActionResult ArrangerView::handleLoopRowPadAction(int32_t x, int32_t y, int32_t 
 			// Use getPosFromSquare(square + 1) to get the actual end of the cell
 			arrangerLoopEnd = getPosFromSquare(startSquare + 1);
 			arrangerLoopExists = true;
-			arrangerLoopActive = true; // Becomes active after creation
+			arrangerLoopActive = true;          // Becomes active after creation
+			arrangerLoopPlayheadInside = false; // Reset state - will be set when playhead enters loop region
 
 			// Reset creation state
 			currentUIMode = UI_MODE_NONE;
@@ -1167,9 +1176,14 @@ ActionResult ArrangerView::handleStatusPadAction(int32_t y, int32_t velocity, UI
 			bool wasActive = arrangerLoopActive;
 			arrangerLoopActive = !arrangerLoopActive;
 
-			// Set flag if we just activated the loop (was inactive, now active)
-			if (!wasActive && arrangerLoopActive) {
-				arrangerLoopJustActivated = true;
+			// Reset playhead inside state when toggling loop activation
+			if (!arrangerLoopActive) {
+				arrangerLoopPlayheadInside = false;
+			}
+			// If activating loop, check current position to set initial state
+			else if (playbackHandler.isEitherClockActive()) {
+				int32_t currentPos = arrangement.getLivePos();
+				arrangerLoopPlayheadInside = (currentPos >= arrangerLoopStart && currentPos < arrangerLoopEnd);
 			}
 
 			// Display current status after toggle - Display Pointer Safety

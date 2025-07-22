@@ -957,10 +957,26 @@ void PlaybackHandler::actionSwungTick() {
 			// Check for arrangement loops - do this after doTickForward but before other processing
 			if (currentPlaybackMode == &arrangement && currentSong) {
 				if (arrangerView.arrangerLoopExists && arrangerView.arrangerLoopActive) {
-					// Get the actual current playback position including any partial tick progress
+					// Get the actual current playback position
 					int32_t currentPos = arrangement.getLivePos();
 
-					if (currentPos >= arrangerView.arrangerLoopEnd) {
+					// Update playhead inside state - check if we're within loop boundaries
+					bool currentlyInside =
+					    (currentPos >= arrangerView.arrangerLoopStart && currentPos < arrangerView.arrangerLoopEnd);
+
+					// If we just entered the loop, set the flag
+					if (currentlyInside && !arrangerView.arrangerLoopPlayheadInside) {
+						arrangerView.arrangerLoopPlayheadInside = true;
+					}
+
+					// Only loop back if we've been inside the loop and now reached the end
+					// Also ensure we haven't already looped on this tick to prevent infinite loops
+					static int64_t lastLoopTick = -1;
+					if (arrangerView.arrangerLoopPlayheadInside && currentPos >= arrangerView.arrangerLoopEnd
+					    && lastSwungTickActioned != lastLoopTick) {
+
+						lastLoopTick = lastSwungTickActioned; // Remember this tick to prevent repeated looping
+
 						// Jump back to loop start
 						int32_t newPos = arrangerView.arrangerLoopStart;
 
@@ -968,13 +984,15 @@ void PlaybackHandler::actionSwungTick() {
 						currentPlaybackMode->resetPlayPos(newPos,
 						                                  true); // Set doingComplete=true to properly resume clips
 
-						// Force immediate re-evaluation of all events by setting next event to 0
-						// This ensures that any notes that should be playing at the new position get processed
-						// immediately
-						swungTicksTilNextEvent = 0;
-
 						// Update visual indicators
 						arrangerView.reassessWhetherDoingAutoScroll(newPos);
+
+						// Keep the inside flag set since we're still in the loop after jumping back
+						// arrangerView.arrangerLoopPlayheadInside remains true
+					}
+					// If we've moved outside the loop (before start), clear the flag
+					else if (currentPos < arrangerView.arrangerLoopStart) {
+						arrangerView.arrangerLoopPlayheadInside = false;
 					}
 				}
 			}

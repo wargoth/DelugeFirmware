@@ -126,8 +126,8 @@ public:
 	int32_t arrangerLoopEnd{-1};
 	bool arrangerLoopExists{false};
 	bool arrangerLoopActive{false};
+	bool arrangerLoopPlayheadInside{false}; // Track if playhead is currently inside loop region
 	int32_t arrangerLoopCreationStartPos{-1};
-	bool arrangerLoopJustActivated{false};
 
 	// ui
 	UIType getUIType() override { return UIType::ARRANGER; }

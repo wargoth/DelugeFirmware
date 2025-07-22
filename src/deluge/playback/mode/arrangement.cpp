@@ -41,7 +41,6 @@ extern "C" {}
 Arrangement arrangement{};
 
 Arrangement::Arrangement() {
-	previousProcessedPos = -1;
 }
 
 // Call this *before* resetPlayPos
@@ -674,68 +673,4 @@ void Arrangement::endAnyLinearRecording() {
 
 bool Arrangement::shouldLoopArrangement() {
 	return (arrangerView.arrangerLoopExists && arrangerView.arrangerLoopActive);
-}
-
-void Arrangement::checkAndHandleArrangerLoop() {
-	// Safety check: don't process loops during initialization or invalid states
-	if (!currentSong || !playbackHandler.isEitherClockActive()) {
-		return;
-	}
-
-	// Additional safety: don't process loops if we're in the middle of setting up playback
-	// This prevents the infinite loop that occurs during initialization when swungTicksTilNextEvent = 0
-	extern bool currentlyActioningSwungTickOrResettingPlayPos;
-	if (currentlyActioningSwungTickOrResettingPlayPos) {
-		return;
-	}
-
-	if (!shouldLoopArrangement()) {
-		return;
-	}
-
-	// Simple check: if we've reached or passed the loop end, jump back to start
-	if (lastProcessedPos >= arrangerView.arrangerLoopEnd) {
-		// Jump back to loop start
-		lastProcessedPos = arrangerView.arrangerLoopStart;
-
-		// Update the playback start position so getLivePos() works correctly
-		playbackStartedAtPos = arrangerView.arrangerLoopStart;
-
-		// Update visual indicators
-		arrangerView.reassessWhetherDoingAutoScroll(arrangerView.arrangerLoopStart);
-
-		// Ensure we don't get stuck in a tight loop
-		playbackHandler.swungTicksTilNextEvent =
-		    std::max(playbackHandler.swungTicksTilNextEvent, (int32_t)currentSong->getQuarterNoteLength());
-
-		// Reactivate any clips that should be playing at the loop start position
-		for (Output* output = currentSong->firstOutput; output; output = output->next) {
-			if (currentSong->isOutputActiveInArrangement(output)) {
-				// Find clip instance at the new position
-				int32_t i = output->clipInstances.search(arrangerView.arrangerLoopStart + 1, LESS);
-				ClipInstance* clipInstance = output->clipInstances.getElement(i);
-
-				if (clipInstance && clipInstance->pos + clipInstance->length > arrangerView.arrangerLoopStart) {
-					// This clip should be playing at the loop start
-					Clip* thisClip = clipInstance->clip;
-					if (thisClip) {
-						thisClip->activeIfNoSolo = true;
-
-						// Calculate position within the clip
-						int32_t clipPos = arrangerView.arrangerLoopStart - clipInstance->pos;
-
-						char modelStackMemory[MODEL_STACK_MAX_SIZE];
-						ModelStackWithTimelineCounter* modelStack =
-						    setupModelStackWithTimelineCounter(modelStackMemory, currentSong, thisClip);
-
-						thisClip->setPos(modelStack, clipPos, true);
-						output->setActiveClip(modelStack);
-					}
-				}
-			}
-		}
-	}
-
-	// Update previous position for next check
-	previousProcessedPos = lastProcessedPos;
 }
