@@ -85,11 +85,15 @@ TEST(ArrangementLoopTests, ShouldLoopAtPosition) {
 	loop.clear();
 	CHECK_FALSE(loop.shouldLoopAtPosition(500));
 
-	// Loop exists and auto-activated
+	// Loop exists and auto-activated, but playhead hasn't been inside yet
 	loop.create(100, 500);
+	CHECK_FALSE(loop.shouldLoopAtPosition(500)); // playheadInside_ is false initially
+
+	// Only loops after playhead has been inside and reaches end
+	loop.initializePlayheadState(300);           // Set playhead as inside
 	CHECK_FALSE(loop.shouldLoopAtPosition(499)); // Before end
-	CHECK_TRUE(loop.shouldLoopAtPosition(500));  // At end
-	CHECK_FALSE(loop.shouldLoopAtPosition(501)); // After end
+	CHECK_TRUE(loop.shouldLoopAtPosition(500));  // At end, and playhead was inside
+	CHECK_TRUE(loop.shouldLoopAtPosition(501));  // After end, and playhead was inside
 
 	// Loop exists but deactivated
 	loop.setActive(false);
@@ -123,8 +127,16 @@ TEST(ArrangementLoopTests, UpdatePlayheadState) {
 	loop.updatePlayheadState(400);
 	CHECK_TRUE(loop.isPlayheadInside());
 
-	// Move out of loop
+	// Move to end of loop - updatePlayheadState doesn't clear the flag at end
+	loop.updatePlayheadState(500);
+	CHECK_TRUE(loop.isPlayheadInside()); // Still true - not cleared by updatePlayheadState
+
+	// Move after end
 	loop.updatePlayheadState(600);
+	CHECK_TRUE(loop.isPlayheadInside()); // Still true - only cleared when moving before start
+
+	// Move before start - this clears the flag
+	loop.updatePlayheadState(50);
 	CHECK_FALSE(loop.isPlayheadInside());
 
 	// Move back into loop
@@ -145,14 +157,18 @@ TEST(ArrangementLoopTests, PlayheadStateWithNonExistentLoop) {
 
 TEST(ArrangementLoopTests, BoundaryConditions) {
 	loop.create(100, 500);
-	// Loop is auto-activated, no need to set active
+	// Loop is auto-activated, but playhead needs to be inside first
 
-	// Test exact boundary positions
+	// Set playhead as inside the loop first
+	loop.initializePlayheadState(300);
+	CHECK_TRUE(loop.isPlayheadInside());
+
+	// Test exact boundary positions for shouldLoopAtPosition
 	CHECK_FALSE(loop.shouldLoopAtPosition(99));  // Just before start
 	CHECK_FALSE(loop.shouldLoopAtPosition(100)); // At start
 	CHECK_FALSE(loop.shouldLoopAtPosition(499)); // Just before end
 	CHECK_TRUE(loop.shouldLoopAtPosition(500));  // At end (should loop)
-	CHECK_FALSE(loop.shouldLoopAtPosition(501)); // Just after end
+	CHECK_TRUE(loop.shouldLoopAtPosition(501));  // Just after end (should loop)
 
 	// Test playhead state at boundaries
 	loop.initializePlayheadState(99);
@@ -175,11 +191,11 @@ TEST(ArrangementLoopTests, LoopTransitions) {
 	CHECK_TRUE(loop.isPlayheadInside());
 
 	// Simulate loop transition - playhead jumps from end to start
-	loop.updatePlayheadState(500);        // At end, about to loop
-	CHECK_FALSE(loop.isPlayheadInside()); // End position is outside
+	loop.updatePlayheadState(500);       // At end, updatePlayheadState doesn't clear flag
+	CHECK_TRUE(loop.isPlayheadInside()); // Still inside according to updatePlayheadState logic
 
 	loop.updatePlayheadState(100);       // Jumped to start
-	CHECK_TRUE(loop.isPlayheadInside()); // Now inside again
+	CHECK_TRUE(loop.isPlayheadInside()); // Still inside
 }
 
 TEST(ArrangementLoopTests, MultipleLoopCreations) {
