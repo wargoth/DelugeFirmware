@@ -318,12 +318,28 @@ justDoArp:
 		sessionView.requestRendering(getRootUI(), 0, 0xFFFFFFFF);
 	}
 
+	// LOOP TIMING COORDINATION: Must happen BEFORE playback stop check
+	// Calculate exact timing for loop boundaries when no further events are scheduled
+	if (shouldLoopArrangement()) {
+		int32_t ticksTilLoopEnd = loop_.getEnd() - lastProcessedPos;
+
+		if (ticksTilLoopEnd > 0) {
+			playbackHandler.swungTicksTilNextEvent = std::min(playbackHandler.swungTicksTilNextEvent, ticksTilLoopEnd);
+		}
+		else if (ticksTilLoopEnd == 0) {
+			// We're exactly at the loop end - make sure we come back next tick
+			playbackHandler.swungTicksTilNextEvent = std::min(playbackHandler.swungTicksTilNextEvent, 1_i32);
+		}
+	}
+
 	// If nothing further in the arrangement, we usually just stop playing
+	// BUT NOT if there's an active loop - then the loop logic will handle it
 	if (playbackHandler.swungTicksTilNextEvent == 2147483647
 	    && playbackHandler.isInternalClockActive()
 	    // Only do this if not recording MIDI - but override that and do do it if we're "resampling"
 	    && (playbackHandler.recording == RecordingMode::OFF
-	        || audioRecorder.recordingSource >= AUDIO_INPUT_CHANNEL_FIRST_INTERNAL_OPTION)) {
+	        || audioRecorder.recordingSource >= AUDIO_INPUT_CHANNEL_FIRST_INTERNAL_OPTION)
+	    && !shouldLoopArrangement()) { // Don't stop if we should loop back
 
 		if (playbackHandler.stopOutputRecordingAtLoopEnd && audioRecorder.isCurrentlyResampling()) {
 			audioRecorder.endRecordingSoon();
@@ -671,6 +687,12 @@ void Arrangement::endAnyLinearRecording() {
 	uiNeedsRendering(&arrangerView, 0xFFFFFFFF, 0);
 }
 
-bool Arrangement::shouldLoopArrangement() {
-	return (arrangerView.arrangerLoopExists && arrangerView.arrangerLoopActive);
+int32_t Arrangement::checkForLoopAndGetNewPosition(int32_t currentPos) {
+	// Update playhead state for smooth loop engagement
+	loop_.updatePlayheadState(currentPos);
+
+	if (loop_.shouldLoopAtPosition(currentPos)) {
+		return loop_.getStart();
+	}
+	return currentPos; // No loop, position unchanged
 }
