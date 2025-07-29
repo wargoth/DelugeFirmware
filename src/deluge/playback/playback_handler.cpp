@@ -190,10 +190,10 @@ void PlaybackHandler::playButtonPressed(int32_t buttonPressLatency) {
 
 	// If not currently playing
 	if (!playbackState) {
-		// Check if we're starting playback with an active loop (with safety checks)
+		// Check if we're starting playback with an active loop (simplified)
 		bool startingWithActiveLoop = false;
-		if (currentSong && display) {
-			startingWithActiveLoop = arrangerView.arrangerLoopExists && arrangerView.arrangerLoopActive;
+		if (currentSong && arrangement.shouldLoopArrangement()) {
+			startingWithActiveLoop = true;
 		}
 
 		setupPlaybackUsingInternalClock(buttonPressLatency);
@@ -410,12 +410,13 @@ void PlaybackHandler::setupPlaybackUsingInternalClock(int32_t buttonPressLatency
 	}
 	// Check if there's an active loop and starting playback - only jump to loop start if current position is before
 	// loop end
-	else if (currentSong && arrangerView.arrangerLoopExists && arrangerView.arrangerLoopActive && !restartingPlayback) {
+	else if (currentSong && arrangement.shouldLoopArrangement() && !restartingPlayback) {
 		// Get current position (scroll position is the default starting position)
 		int32_t currentPos = currentSong->xScroll[navSys];
+		const ArrangementLoop& loop = arrangement.getLoop();
 		// Only jump to loop start if current position is before the loop end
-		if (currentPos < arrangerView.arrangerLoopEnd) {
-			newPos = arrangerView.arrangerLoopStart;
+		if (currentPos < loop.getEnd()) {
+			newPos = loop.getStart();
 		}
 		else {
 			// Stay at current position - we're past the loop already
@@ -954,46 +955,16 @@ void PlaybackHandler::actionSwungTick() {
 
 		if (isEitherClockActive()) { // Occasionally, doTickForward() will stop playback
 
-			// Check for arrangement loops - do this after doTickForward but before other processing
+			// Check for arrangement loops - simplified approach
 			if (currentPlaybackMode == &arrangement && currentSong) {
-				if (arrangerView.arrangerLoopExists && arrangerView.arrangerLoopActive) {
-					// Get the actual current playback position
-					int32_t currentPos = arrangement.getLivePos();
+				int32_t currentPos = arrangement.lastProcessedPos;
+				int32_t newPos = arrangement.checkForLoopAndGetNewPosition(currentPos);
 
-					// Update playhead inside state - check if we're within loop boundaries
-					bool currentlyInside =
-					    (currentPos >= arrangerView.arrangerLoopStart && currentPos < arrangerView.arrangerLoopEnd);
-
-					// If we just entered the loop, set the flag
-					if (currentlyInside && !arrangerView.arrangerLoopPlayheadInside) {
-						arrangerView.arrangerLoopPlayheadInside = true;
-					}
-
-					// Only loop back if we've been inside the loop and now reached the end
-					// Also ensure we haven't already looped on this tick to prevent infinite loops
-					static int64_t lastLoopTick = -1;
-					if (arrangerView.arrangerLoopPlayheadInside && currentPos >= arrangerView.arrangerLoopEnd
-					    && lastSwungTickActioned != lastLoopTick) {
-
-						lastLoopTick = lastSwungTickActioned; // Remember this tick to prevent repeated looping
-
-						// Jump back to loop start
-						int32_t newPos = arrangerView.arrangerLoopStart;
-
-						// Reset position and ensure all clips are properly resumed
-						currentPlaybackMode->resetPlayPos(newPos,
-						                                  true); // Set doingComplete=true to properly resume clips
-
-						// Update visual indicators
-						arrangerView.reassessWhetherDoingAutoScroll(newPos);
-
-						// Keep the inside flag set since we're still in the loop after jumping back
-						// arrangerView.arrangerLoopPlayheadInside remains true
-					}
-					// If we've moved outside the loop (before start), clear the flag
-					else if (currentPos < arrangerView.arrangerLoopStart) {
-						arrangerView.arrangerLoopPlayheadInside = false;
-					}
+				if (newPos != currentPos) {
+					// Loop occurred - reset position
+					currentPlaybackMode->resetPlayPos(newPos, true);
+					swungTicksTilNextEvent = 1; // Schedule immediate processing
+					arrangerView.reassessWhetherDoingAutoScroll(newPos);
 				}
 			}
 

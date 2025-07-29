@@ -121,12 +121,7 @@ public:
 
 	int32_t xScrollWhenPlaybackStarted{};
 
-	// Loop row state variables
-	int32_t arrangerLoopStart{-1};
-	int32_t arrangerLoopEnd{-1};
-	bool arrangerLoopExists{false};
-	bool arrangerLoopActive{false};
-	bool arrangerLoopPlayheadInside{false}; // Track if playhead is currently inside loop region
+	// Loop creation UI state (temporary during creation only)
 	int32_t arrangerLoopCreationStartPos{-1};
 
 	// ui

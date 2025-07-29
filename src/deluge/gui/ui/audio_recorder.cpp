@@ -161,10 +161,9 @@ bool AudioRecorder::beginOutputRecording(AudioRecordingFolder folder, AudioInput
 
 	if (success) {
 		// Check if we're in arrangement view with an active loop
-		if (getRootUI() == &arrangerView && arrangement.hasPlaybackActive() && arrangerView.arrangerLoopExists
-		    && arrangerView.arrangerLoopActive) {
+		if (getRootUI() == &arrangerView && arrangement.hasPlaybackActive() && arrangement.shouldLoopArrangement()) {
 			// Set up loop recording to stop at loop end
-			recorder->setLoopRecordingParams(arrangerView.arrangerLoopEnd);
+			recorder->setLoopRecordingParams(arrangement.getLoop().getEnd());
 		}
 
 		indicator_leds::blinkLed(IndicatorLED::RECORD, 255, 1);

@@ -68,6 +68,7 @@
 #include "modulation/params/param_set.h"
 #include "playback/mode/arrangement.h"
 #include "playback/mode/session.h"
+#include "playback/playback_handler.h"
 #include "processing/audio_output.h"
 #include "processing/engines/audio_engine.h"
 #include "processing/sound/sound_drum.h"
@@ -500,12 +501,8 @@ void ArrangerView::clearArrangement() {
 		}
 	}
 
-	// Clear loop and reset related state
-	arrangerLoopExists = false;
-	arrangerLoopActive = false;
-	arrangerLoopPlayheadInside = false; // Reset playhead inside state when clearing arrangement
-	arrangerLoopStart = -1;
-	arrangerLoopEnd = -1;
+	// Clear loop
+	arrangement.getLoop().clear();
 
 	uiNeedsRendering(this, 0xFFFFFFFF, 0);
 }
@@ -615,7 +612,7 @@ void ArrangerView::drawMuteSquare(int32_t yDisplay, RGB thisImage[]) {
 
 	// Handle loop row (y = 0)
 	if (yDisplay == 0) {
-		if (arrangerLoopExists && arrangerLoopActive) {
+		if (arrangement.shouldLoopArrangement()) {
 			thisColour = colours::green; // Active loop
 		}
 		else {
@@ -1111,12 +1108,8 @@ ActionResult ArrangerView::handleLoopRowPadAction(int32_t x, int32_t y, int32_t 
 
 			int32_t actualEndPos = getPosFromSquare(endSquare + 1);
 
-			// Create the loop
-			arrangerLoopStart = startPos;
-			arrangerLoopEnd = actualEndPos;
-			arrangerLoopExists = true;
-			arrangerLoopActive = true;          // Becomes active after creation
-			arrangerLoopPlayheadInside = false; // Reset state - will be set when playhead enters loop region
+			// Create the loop using the new arrangement loop system
+			arrangement.getLoop().create(startPos, actualEndPos);
 
 			// Reset creation state
 			currentUIMode = UI_MODE_NONE;
@@ -1145,12 +1138,10 @@ ActionResult ArrangerView::handleLoopRowPadAction(int32_t x, int32_t y, int32_t 
 				return ActionResult::DEALT_WITH;
 			}
 
-			arrangerLoopStart = arrangerLoopCreationStartPos;
-			// Use getPosFromSquare(square + 1) to get the actual end of the cell
-			arrangerLoopEnd = getPosFromSquare(startSquare + 1);
-			arrangerLoopExists = true;
-			arrangerLoopActive = true;          // Becomes active after creation
-			arrangerLoopPlayheadInside = false; // Reset state - will be set when playhead enters loop region
+			// Create single-cell loop using the new arrangement loop system
+			int32_t startPos = arrangerLoopCreationStartPos;
+			int32_t endPos = getPosFromSquare(startSquare + 1);
+			arrangement.getLoop().create(startPos, endPos);
 
 			// Reset creation state
 			currentUIMode = UI_MODE_NONE;
@@ -1171,24 +1162,25 @@ ActionResult ArrangerView::handleStatusPadAction(int32_t y, int32_t velocity, UI
 
 	// Handle loop row status pad (y = 0)
 	if (y == 0) {
-		if (velocity && arrangerLoopExists) {
+		if (velocity && arrangement.getLoop().exists()) {
 			// Toggle loop activation
-			bool wasActive = arrangerLoopActive;
-			arrangerLoopActive = !arrangerLoopActive;
+			bool wasActive = arrangement.getLoop().isActive();
+			arrangement.getLoop().setActive(!wasActive);
 
-			// Reset playhead inside state when toggling loop activation
-			if (!arrangerLoopActive) {
-				arrangerLoopPlayheadInside = false;
+			// Update playhead state appropriately
+			if (!arrangement.getLoop().isActive()) {
+				// Loop deactivated - reset playhead state
+				arrangement.getLoop().resetPlayheadState();
 			}
-			// If activating loop, check current position to set initial state
 			else if (playbackHandler.isEitherClockActive()) {
+				// Loop activated during playback - initialize playhead state based on current position
 				int32_t currentPos = arrangement.getLivePos();
-				arrangerLoopPlayheadInside = (currentPos >= arrangerLoopStart && currentPos < arrangerLoopEnd);
+				arrangement.getLoop().initializePlayheadState(currentPos);
 			}
 
 			// Display current status after toggle - Display Pointer Safety
 			if (display) {
-				if (arrangerLoopActive) {
+				if (arrangement.getLoop().isActive()) {
 					display->displayPopup("ON");
 				}
 				else {
@@ -1347,10 +1339,10 @@ ActionResult ArrangerView::handleAuditionPadAction(int32_t y, int32_t velocity, 
 		if (velocity) {
 			// Display "LOOP" text followed by ON/OFF status - Display Pointer Safety
 			if (display) {
-				if (arrangerLoopExists && arrangerLoopActive) {
+				if (arrangement.getLoop().isActive()) {
 					display->displayPopup("ON");
 				}
-				else if (arrangerLoopExists && !arrangerLoopActive) {
+				else if (arrangement.getLoop().exists()) {
 					display->displayPopup("OFF");
 				}
 				else {
@@ -2436,7 +2428,7 @@ void ArrangerView::renderLoopRow(int32_t xScroll, uint32_t xZoom, RGB* imageThis
 	}
 
 	// Show start position during loop creation (when holding start)
-	if (currentUIMode == UI_MODE_LOOP_CREATION_HOLDING_START && !arrangerLoopExists) {
+	if (currentUIMode == UI_MODE_LOOP_CREATION_HOLDING_START && !arrangement.getLoop().exists()) {
 		int32_t startPressSquare = getSquareFromPos(arrangerLoopCreationStartPos, nullptr, xScroll, xZoom);
 		// Only render the white square if it's within the visible area
 		if (startPressSquare >= 0 && startPressSquare < renderWidth) {
@@ -2448,11 +2440,11 @@ void ArrangerView::renderLoopRow(int32_t xScroll, uint32_t xZoom, RGB* imageThis
 	}
 
 	// Render the loop handle with rainbow colors if it exists
-	if (arrangerLoopExists) {
-		int32_t loopStartSquare = getSquareFromPos(arrangerLoopStart, nullptr, xScroll, xZoom);
+	if (arrangement.getLoop().exists()) {
+		int32_t loopStartSquare = getSquareFromPos(arrangement.getLoop().getStart(), nullptr, xScroll, xZoom);
 		// For rendering, we need the square that contains the end position, not the square after it
-		// Since arrangerLoopEnd is the actual end position, we subtract 1 to get the last square to render
-		int32_t loopEndSquare = getSquareFromPos(arrangerLoopEnd - 1, nullptr, xScroll, xZoom);
+		// Since loopEnd is the actual end position, we subtract 1 to get the last square to render
+		int32_t loopEndSquare = getSquareFromPos(arrangement.getLoop().getEnd() - 1, nullptr, xScroll, xZoom);
 
 		// Check if the loop is completely outside the visible area
 		if (loopEndSquare < 0 || loopStartSquare >= renderWidth) {
