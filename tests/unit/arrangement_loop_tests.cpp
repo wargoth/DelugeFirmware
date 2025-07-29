@@ -23,10 +23,9 @@ TEST(ArrangementLoopTests, InitialState) {
 }
 
 TEST(ArrangementLoopTests, CreateValidLoop) {
-	Error error = loop.create(100, 500);
-	CHECK_EQUAL(Error::NONE, error);
+	loop.create(100, 500);
 	CHECK_TRUE(loop.exists());
-	CHECK_FALSE(loop.isActive()); // Created but not activated
+	CHECK_TRUE(loop.isActive()); // Auto-activated when created
 	CHECK_EQUAL(100, loop.getStart());
 	CHECK_EQUAL(500, loop.getEnd());
 	CHECK_EQUAL(400, loop.getLength());
@@ -34,24 +33,22 @@ TEST(ArrangementLoopTests, CreateValidLoop) {
 
 TEST(ArrangementLoopTests, CreateInvalidLoop) {
 	// End position before start position
-	Error error = loop.create(500, 100);
-	CHECK_EQUAL(Error::INVALID_LOOP_RANGE, error);
-	CHECK_FALSE(loop.exists());
+	loop.create(500, 100);
+	CHECK_FALSE(loop.exists()); // Should not create invalid loop
 
 	// Zero-length loop
-	error = loop.create(100, 100);
-	CHECK_EQUAL(Error::INVALID_LOOP_RANGE, error);
-	CHECK_FALSE(loop.exists());
+	loop.create(100, 100);
+	CHECK_FALSE(loop.exists()); // Should not create zero-length loop
 }
 
 TEST(ArrangementLoopTests, SetActive) {
 	loop.create(100, 500);
 
+	CHECK_TRUE(loop.isActive()); // Auto-activated when created
+	loop.setActive(false);
 	CHECK_FALSE(loop.isActive());
 	loop.setActive(true);
 	CHECK_TRUE(loop.isActive());
-	loop.setActive(false);
-	CHECK_FALSE(loop.isActive());
 }
 
 TEST(ArrangementLoopTests, Clear) {
@@ -88,15 +85,15 @@ TEST(ArrangementLoopTests, ShouldLoopAtPosition) {
 	loop.clear();
 	CHECK_FALSE(loop.shouldLoopAtPosition(500));
 
-	// Loop exists but not active
+	// Loop exists and auto-activated
 	loop.create(100, 500);
-	CHECK_FALSE(loop.shouldLoopAtPosition(500));
-
-	// Loop exists and active
-	loop.setActive(true);
 	CHECK_FALSE(loop.shouldLoopAtPosition(499)); // Before end
 	CHECK_TRUE(loop.shouldLoopAtPosition(500));  // At end
 	CHECK_FALSE(loop.shouldLoopAtPosition(501)); // After end
+
+	// Loop exists but deactivated
+	loop.setActive(false);
+	CHECK_FALSE(loop.shouldLoopAtPosition(500)); // Inactive loops don't trigger
 }
 
 TEST(ArrangementLoopTests, PlayheadStateTracking) {
@@ -148,7 +145,7 @@ TEST(ArrangementLoopTests, PlayheadStateWithNonExistentLoop) {
 
 TEST(ArrangementLoopTests, BoundaryConditions) {
 	loop.create(100, 500);
-	loop.setActive(true);
+	// Loop is auto-activated, no need to set active
 
 	// Test exact boundary positions
 	CHECK_FALSE(loop.shouldLoopAtPosition(99));  // Just before start
@@ -173,7 +170,7 @@ TEST(ArrangementLoopTests, BoundaryConditions) {
 
 TEST(ArrangementLoopTests, LoopTransitions) {
 	loop.create(100, 500);
-	loop.setActive(true);
+	// Loop is auto-activated
 	loop.initializePlayheadState(300); // Start inside
 	CHECK_TRUE(loop.isPlayheadInside());
 
@@ -200,7 +197,7 @@ TEST(ArrangementLoopTests, MultipleLoopCreations) {
 
 TEST(ArrangementLoopTests, StatePreservationAcrossOperations) {
 	loop.create(100, 500);
-	loop.setActive(true);
+	// Loop is auto-activated
 	loop.initializePlayheadState(300);
 
 	CHECK_TRUE(loop.exists());
