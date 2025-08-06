@@ -3152,6 +3152,26 @@ void NoteRow::resumePlayback(ModelStackWithNoteRow* modelStack, bool clipMayMake
 
 		int32_t effectiveActualCurrentPos = getLivePos(modelStack);
 
+		// Fix for arrangement loop bug: Check for notes that start exactly at the current position.
+		// Previously, resumePlayback only caught "late" notes (already in progress) via maybeStartLateNote,
+		// but missed notes starting exactly at position 0 after loop reset, causing first notes to not play
+		// when loop end coincides with clip end and there's no subsequent clip instance.
+		int32_t exactPosIndex = notes.search(effectiveActualCurrentPos, GREATER_OR_EQUAL);
+		if (exactPosIndex < notes.getNumElements()) {
+			Note* noteAtCurrentPos = notes.getElement(exactPosIndex);
+			if (noteAtCurrentPos->pos == effectiveActualCurrentPos) {
+				// We found a note that starts exactly at the current position
+				if (AudioEngine::allowedToStartVoice()) {
+					playNote(true, modelStack, noteAtCurrentPos, 0, 0, false, nullptr);
+					ignoredNoteOn = false;
+				}
+				else {
+					ignoredNoteOn = true;
+				}
+			}
+		}
+
+		// Then check for notes that we might be "late" for (already in progress)
 		if ((runtimeFeatureSettings.get(RuntimeFeatureSettingType::CatchNotes) == RuntimeFeatureStateToggle::On)) {
 			maybeStartLateNote(modelStack, effectiveActualCurrentPos);
 		}
