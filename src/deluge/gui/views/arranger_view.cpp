@@ -2479,67 +2479,38 @@ void ArrangerView::renderLoopRow(int32_t xScroll, uint32_t xZoom, RGB* imageThis
 }
 
 RGB ArrangerView::getRainbowColor(float position) {
-	// Create rainbow colors based on HSV color space
-	// position should be between 0.0 and 1.0
-	if (position < 0.0f)
-		position = 0.0f;
-	if (position > 1.0f)
-		position = 1.0f;
+	// Clamp position to [0.0, 1.0]
+	position = (position < 0.0f) ? 0.0f : (position > 1.0f) ? 1.0f : position;
 
-	float hue = position * 360.0f; // Full rainbow spectrum
-	float saturation = 1.0f;
-	float value = 1.0f;
+	// Map position to hue (0-360 degrees) and convert to sector (0-5)
+	float hue = position * 6.0f; // Direct sector calculation
+	int32_t sector = static_cast<int32_t>(hue);
+	float fractional = hue - sector;
 
-	// Convert HSV to RGB
-	float c = value * saturation;
-	// Simpler modulo operation instead of std::fmod
-	float hue_sector = hue / 60.0f;
-	int32_t sector = (int32_t)hue_sector;
-	float x = c * (1.0f - ((hue_sector - sector) > 1.0f ? 2.0f - (hue_sector - sector) : (hue_sector - sector)));
-	if (x < 0.0f)
-		x = -x; // abs value
-	x = c * (1.0f - x);
-	float m = value - c;
+	// Create pastel colors by mixing with white and reducing saturation
+	constexpr uint8_t baseWhite = 60;       // Reduced white component for more vibrant colors
+	constexpr uint8_t colorIntensity = 195; // Increased color intensity for more saturation
 
-	float r, g, b;
+	uint8_t primary = baseWhite + colorIntensity;
+	uint8_t secondary = baseWhite + static_cast<uint8_t>(colorIntensity * fractional);
+	uint8_t tertiary = baseWhite + static_cast<uint8_t>(colorIntensity * (1.0f - fractional));
+	uint8_t minimal = baseWhite;
+
+	// Select RGB values based on sector for pastel rainbow
 	switch (sector % 6) {
 	case 0:
-		r = c;
-		g = x;
-		b = 0;
-		break;
+		return RGB{primary, secondary, minimal}; // Pastel Red to Yellow
 	case 1:
-		r = x;
-		g = c;
-		b = 0;
-		break;
+		return RGB{tertiary, primary, minimal}; // Pastel Yellow to Green
 	case 2:
-		r = 0;
-		g = c;
-		b = x;
-		break;
+		return RGB{minimal, primary, secondary}; // Pastel Green to Cyan
 	case 3:
-		r = 0;
-		g = x;
-		b = c;
-		break;
+		return RGB{minimal, tertiary, primary}; // Pastel Cyan to Blue
 	case 4:
-		r = x;
-		g = 0;
-		b = c;
-		break;
-	default: // case 5
-		r = c;
-		g = 0;
-		b = x;
-		break;
+		return RGB{secondary, minimal, primary}; // Pastel Blue to Magenta
+	default:
+		return RGB{primary, minimal, tertiary}; // Pastel Magenta to Red
 	}
-
-	r = (r + m) * 255.0f;
-	g = (g + m) * 255.0f;
-	b = (b + m) * 255.0f;
-
-	return RGB(static_cast<uint8_t>(r), static_cast<uint8_t>(g), static_cast<uint8_t>(b));
 }
 
 bool ArrangerView::renderMainPads(uint32_t whichRows, RGB image[][kDisplayWidth + kSideBarWidth],
