@@ -75,10 +75,15 @@ bool ArrangementLoop::isValidRange(int32_t start, int32_t end) const {
 	return start >= 0 && end > start && end < 2147483647;
 }
 
-void ArrangementLoop::writeToFile() const {
-	// TODO: Implement serialization for song files
-}
+void ArrangementLoop::setFromDeserialized(int32_t startPos, int32_t endPos, bool active) {
+	if (!isValidRange(startPos, endPos)) {
+		clear();
+		return;
+	}
 
-void ArrangementLoop::readFromFile() {
-	// TODO: Implement deserialization from song files
+	startPos_ = startPos;
+	endPos_ = endPos;
+	exists_ = true;
+	active_ = active;
+	playheadInside_ = false; // Reset playhead state on load
 }

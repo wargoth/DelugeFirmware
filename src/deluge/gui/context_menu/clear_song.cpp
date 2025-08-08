@@ -114,6 +114,9 @@ bool ClearSong::acceptCurrentOption() {
 
 	display->removeWorkingAnimation();
 
+	// Apply any pending arrangement loop data (should be empty for cleared songs)
+	currentSong->applyPendingArrangementLoopData();
+
 	return true;
 }
 } // namespace deluge::gui::context_menu
