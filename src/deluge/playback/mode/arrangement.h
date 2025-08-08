@@ -18,7 +18,6 @@
 #pragma once
 
 #include "definitions_cxx.hpp"
-#include "model/arrangement_loop.h"
 #include "playback/mode/playback_mode.h"
 
 class ClipInstance;
@@ -54,17 +53,10 @@ public:
 	int32_t getLivePos(uint32_t* timeRemainder = nullptr);
 	void endAnyLinearRecording();
 
-	// Loop management
-	ArrangementLoop& getLoop() { return loop_; }
-	const ArrangementLoop& getLoop() const { return loop_; }
-	bool shouldLoopArrangement() const { return loop_.isActive(); }
-	int32_t checkForLoopAndGetNewPosition(int32_t currentPos);
-
 	int32_t lastProcessedPos;
 	int32_t playbackStartedAtPos;
 
 private:
-	ArrangementLoop loop_;
 };
 
 extern Arrangement arrangement;

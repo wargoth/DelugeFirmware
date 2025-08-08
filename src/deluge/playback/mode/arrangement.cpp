@@ -320,8 +320,8 @@ justDoArp:
 
 	// LOOP TIMING COORDINATION: Must happen BEFORE playback stop check
 	// Calculate exact timing for loop boundaries when no further events are scheduled
-	if (shouldLoopArrangement()) {
-		int32_t ticksTilLoopEnd = loop_.getEnd() - lastProcessedPos;
+	if (currentSong && currentSong->shouldLoopArrangement()) {
+		int32_t ticksTilLoopEnd = currentSong->getArrangementLoop().getEnd() - lastProcessedPos;
 
 		if (ticksTilLoopEnd > 0) {
 			playbackHandler.swungTicksTilNextEvent = std::min(playbackHandler.swungTicksTilNextEvent, ticksTilLoopEnd);
@@ -339,7 +339,7 @@ justDoArp:
 	    // Only do this if not recording MIDI - but override that and do do it if we're "resampling"
 	    && (playbackHandler.recording == RecordingMode::OFF
 	        || audioRecorder.recordingSource >= AUDIO_INPUT_CHANNEL_FIRST_INTERNAL_OPTION)
-	    && !shouldLoopArrangement()) { // Don't stop if we should loop back
+	    && !(currentSong && currentSong->shouldLoopArrangement())) { // Don't stop if we should loop back
 
 		if (playbackHandler.stopOutputRecordingAtLoopEnd && audioRecorder.isCurrentlyResampling()) {
 			audioRecorder.endRecordingSoon();
@@ -685,22 +685,4 @@ void Arrangement::endAnyLinearRecording() {
 	arrangerView.mustRedrawTickSquares = true; // Tick square shouldn't be red anymore
 
 	uiNeedsRendering(&arrangerView, 0xFFFFFFFF, 0);
-}
-
-int32_t Arrangement::checkForLoopAndGetNewPosition(int32_t currentPos) {
-	// Update playhead state for smooth loop engagement
-	loop_.updatePlayheadState(currentPos);
-
-	if (loop_.shouldLoopAtPosition(currentPos)) {
-		// Calculate how far beyond the loop end we are
-		int32_t loopLength = loop_.getEnd() - loop_.getStart();
-		int32_t beyondEnd = currentPos - loop_.getEnd();
-
-		// Handle wrap-around: calculate new offset after start
-		// This ensures we maintain timing accuracy even when position is far beyond loop end
-		int32_t offsetWithinLoop = beyondEnd % loopLength;
-
-		return loop_.getStart() + offsetWithinLoop;
-	}
-	return currentPos; // No loop, position unchanged
 }

@@ -1121,10 +1121,10 @@ weAreInArrangementEditorOrInClipInstance:
 	writer.writeAttribute("xZoomArrangementView", xZoom[NAVIGATION_ARRANGEMENT]);
 
 	// Write arrangement loop state if it exists
-	if (arrangement.getLoop().exists()) {
-		writer.writeAttribute("arrangerLoopStart", arrangement.getLoop().getStart());
-		writer.writeAttribute("arrangerLoopEnd", arrangement.getLoop().getEnd());
-		writer.writeAttribute("arrangerLoopActive", arrangement.getLoop().isActive() ? 1 : 0);
+	if (arrangementLoop_.exists()) {
+		writer.writeAttribute("arrangerLoopStart", arrangementLoop_.getStart());
+		writer.writeAttribute("arrangerLoopEnd", arrangementLoop_.getEnd());
+		writer.writeAttribute("arrangerLoopActive", arrangementLoop_.isActive() ? 1 : 0);
 	}
 
 	writer.writeAttribute("timePerTimerTick", timePerTimerTickBig >> 32);
@@ -1355,7 +1355,7 @@ Error Song::readFromFile(Deserializer& reader) {
 
 	uint64_t newTimePerTimerTick = (uint64_t)1 << 32; // TODO: make better!
 
-	// Temporary variables for arrangement loop state
+	// Temporary variables for arrangement loop loading (needed during file parsing)
 	int32_t arrangerLoopStart = -1;
 	int32_t arrangerLoopEnd = -1;
 	bool arrangerLoopActive = false;
@@ -2279,12 +2279,13 @@ skipInstance:
 
 	AudioEngine::routineWithClusterLoading(); // -----------------------------------
 
-	// Store arrangement loop state if found in file to apply later
-	pendingArrangerLoopFound = arrangerLoopFound;
+	// Apply arrangement loop state directly to Song's loop member
 	if (arrangerLoopFound && arrangerLoopStart != -1 && arrangerLoopEnd != -1) {
-		pendingArrangerLoopStart = arrangerLoopStart;
-		pendingArrangerLoopEnd = arrangerLoopEnd;
-		pendingArrangerLoopActive = arrangerLoopActive;
+		arrangementLoop_.setFromDeserialized(arrangerLoopStart, arrangerLoopEnd, arrangerLoopActive);
+	}
+	else {
+		// No valid loop data found, ensure loop is cleared
+		arrangementLoop_.clear();
 	}
 
 	return Error::NONE;
@@ -6079,28 +6080,22 @@ traverseClips; }
     }
  */
 
-// Apply pending arrangement loop data (call after song is fully loaded and arrangement is ready)
-void Song::applyPendingArrangementLoopData() {
-	// Safety check - ensure we're not in a critical audio processing context
-	if (sdRoutineLock) {
-		return;
+// Check for arrangement loop and return new position if looping should occur
+int32_t Song::checkForArrangementLoopAndGetNewPosition(int32_t currentPos) {
+	if (!arrangementLoop_.isActive()) {
+		arrangementLoop_.updatePlayheadState(currentPos);
+		return currentPos;
 	}
 
-	// Apply loop data if we found valid data in the file
-	if (pendingArrangerLoopFound && pendingArrangerLoopStart != -1 && pendingArrangerLoopEnd != -1) {
-		arrangement.getLoop().setFromDeserialized(pendingArrangerLoopStart, pendingArrangerLoopEnd,
-		                                          pendingArrangerLoopActive);
-	}
-	else {
-		// No valid loop data found, clear any existing loop
-		arrangement.getLoop().clear();
+	// Update playhead state tracking
+	arrangementLoop_.updatePlayheadState(currentPos);
+
+	// Only loop if playhead has been inside the loop and is now at/past the end
+	if (arrangementLoop_.isPlayheadInside() && arrangementLoop_.isPositionAtEnd(currentPos)) {
+		return arrangementLoop_.getLoopStartPosition();
 	}
 
-	// Clear pending data after processing
-	pendingArrangerLoopStart = -1;
-	pendingArrangerLoopEnd = -1;
-	pendingArrangerLoopActive = false;
-	pendingArrangerLoopFound = false;
+	return currentPos;
 }
 
 //    for (Output* output = firstOutput; output; output = output->next) {

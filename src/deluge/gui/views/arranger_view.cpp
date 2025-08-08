@@ -502,7 +502,7 @@ void ArrangerView::clearArrangement() {
 	}
 
 	// Clear loop
-	arrangement.getLoop().clear();
+	currentSong->getArrangementLoop().clear();
 
 	uiNeedsRendering(this, 0xFFFFFFFF, 0);
 }
@@ -612,7 +612,7 @@ void ArrangerView::drawMuteSquare(int32_t yDisplay, RGB thisImage[]) {
 
 	// Handle loop row (y = 0)
 	if (yDisplay == 0) {
-		if (arrangement.shouldLoopArrangement()) {
+		if (currentSong && currentSong->shouldLoopArrangement()) {
 			thisColour = colours::green; // Active loop
 		}
 		else {
@@ -1109,7 +1109,7 @@ ActionResult ArrangerView::handleLoopRowPadAction(int32_t x, int32_t y, int32_t 
 			int32_t actualEndPos = getPosFromSquare(endSquare + 1);
 
 			// Create the loop using the new arrangement loop system
-			arrangement.getLoop().create(startPos, actualEndPos);
+			currentSong->getArrangementLoop().create(startPos, actualEndPos);
 
 			// Reset creation state
 			currentUIMode = UI_MODE_NONE;
@@ -1141,7 +1141,7 @@ ActionResult ArrangerView::handleLoopRowPadAction(int32_t x, int32_t y, int32_t 
 			// Create single-cell loop using the new arrangement loop system
 			int32_t startPos = arrangerLoopCreationStartPos;
 			int32_t endPos = getPosFromSquare(startSquare + 1);
-			arrangement.getLoop().create(startPos, endPos);
+			currentSong->getArrangementLoop().create(startPos, endPos);
 
 			// Reset creation state
 			currentUIMode = UI_MODE_NONE;
@@ -1162,25 +1162,25 @@ ActionResult ArrangerView::handleStatusPadAction(int32_t y, int32_t velocity, UI
 
 	// Handle loop row status pad (y = 0)
 	if (y == 0) {
-		if (velocity && arrangement.getLoop().exists()) {
+		if (velocity && currentSong->getArrangementLoop().exists()) {
 			// Toggle loop activation
-			bool wasActive = arrangement.getLoop().isActive();
-			arrangement.getLoop().setActive(!wasActive);
+			bool wasActive = currentSong->getArrangementLoop().isActive();
+			currentSong->getArrangementLoop().setActive(!wasActive);
 
 			// Update playhead state appropriately
-			if (!arrangement.getLoop().isActive()) {
+			if (!currentSong->getArrangementLoop().isActive()) {
 				// Loop deactivated - reset playhead state
-				arrangement.getLoop().resetPlayheadState();
+				currentSong->getArrangementLoop().resetPlayheadState();
 			}
 			else if (playbackHandler.isEitherClockActive()) {
 				// Loop activated during playback - initialize playhead state based on current position
 				int32_t currentPos = arrangement.getLivePos();
-				arrangement.getLoop().initializePlayheadState(currentPos);
+				currentSong->getArrangementLoop().initializePlayheadState(currentPos);
 			}
 
 			// Display current status after toggle - Display Pointer Safety
 			if (display) {
-				if (arrangement.getLoop().isActive()) {
+				if (currentSong->getArrangementLoop().isActive()) {
 					display->displayPopup("ON");
 				}
 				else {
@@ -1339,10 +1339,10 @@ ActionResult ArrangerView::handleAuditionPadAction(int32_t y, int32_t velocity, 
 		if (velocity) {
 			// Display "LOOP" text followed by ON/OFF status - Display Pointer Safety
 			if (display) {
-				if (arrangement.getLoop().isActive()) {
+				if (currentSong->getArrangementLoop().isActive()) {
 					display->displayPopup("ON");
 				}
-				else if (arrangement.getLoop().exists()) {
+				else if (currentSong->getArrangementLoop().exists()) {
 					display->displayPopup("OFF");
 				}
 				else {
@@ -2428,7 +2428,7 @@ void ArrangerView::renderLoopRow(int32_t xScroll, uint32_t xZoom, RGB* imageThis
 	}
 
 	// Show start position during loop creation (when holding start)
-	if (currentUIMode == UI_MODE_LOOP_CREATION_HOLDING_START && !arrangement.getLoop().exists()) {
+	if (currentUIMode == UI_MODE_LOOP_CREATION_HOLDING_START && !currentSong->getArrangementLoop().exists()) {
 		int32_t startPressSquare = getSquareFromPos(arrangerLoopCreationStartPos, nullptr, xScroll, xZoom);
 		// Only render the white square if it's within the visible area
 		if (startPressSquare >= 0 && startPressSquare < renderWidth) {
@@ -2440,11 +2440,13 @@ void ArrangerView::renderLoopRow(int32_t xScroll, uint32_t xZoom, RGB* imageThis
 	}
 
 	// Render the loop handle with rainbow colors if it exists
-	if (arrangement.getLoop().exists()) {
-		int32_t loopStartSquare = getSquareFromPos(arrangement.getLoop().getStart(), nullptr, xScroll, xZoom);
+	if (currentSong->getArrangementLoop().exists()) {
+		int32_t loopStartSquare =
+		    getSquareFromPos(currentSong->getArrangementLoop().getStart(), nullptr, xScroll, xZoom);
 		// For rendering, we need the square that contains the end position, not the square after it
 		// Since loopEnd is the actual end position, we subtract 1 to get the last square to render
-		int32_t loopEndSquare = getSquareFromPos(arrangement.getLoop().getEnd() - 1, nullptr, xScroll, xZoom);
+		int32_t loopEndSquare =
+		    getSquareFromPos(currentSong->getArrangementLoop().getEnd() - 1, nullptr, xScroll, xZoom);
 
 		// Check if the loop is completely outside the visible area
 		if (loopEndSquare < 0 || loopStartSquare >= renderWidth) {
