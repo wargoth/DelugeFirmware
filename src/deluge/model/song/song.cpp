@@ -1119,6 +1119,14 @@ weAreInArrangementEditorOrInClipInstance:
 	writer.writeAttribute("yScrollArrangementView", arrangementYScroll);
 	writer.writeAttribute("xScrollArrangementView", xScroll[NAVIGATION_ARRANGEMENT]);
 	writer.writeAttribute("xZoomArrangementView", xZoom[NAVIGATION_ARRANGEMENT]);
+
+	// Write arrangement loop state if it exists
+	if (arrangement.getLoop().exists()) {
+		writer.writeAttribute("arrangerLoopStart", arrangement.getLoop().getStart());
+		writer.writeAttribute("arrangerLoopEnd", arrangement.getLoop().getEnd());
+		writer.writeAttribute("arrangerLoopActive", arrangement.getLoop().isActive() ? 1 : 0);
+	}
+
 	writer.writeAttribute("timePerTimerTick", timePerTimerTickBig >> 32);
 	writer.writeAttribute("timerTickFraction", (uint32_t)timePerTimerTickBig);
 	writer.writeAttribute("rootNote", key.rootNote);
@@ -1334,12 +1342,7 @@ weAreInArrangementEditorOrInClipInstance:
 }
 
 Error Song::readFromFile(Deserializer& reader) {
-	D_PRINTLN("DEBUG: readFromFile");
-
 	outputClipInstanceListIsCurrentlyInvalid = true;
-
-	D_PRINTLN("");
-	D_PRINTLN("loading song!!!!!!!!!!!!!!");
 
 	char const* tagName;
 
@@ -1351,6 +1354,12 @@ Error Song::readFromFile(Deserializer& reader) {
 	}
 
 	uint64_t newTimePerTimerTick = (uint64_t)1 << 32; // TODO: make better!
+
+	// Temporary variables for arrangement loop state
+	int32_t arrangerLoopStart = -1;
+	int32_t arrangerLoopEnd = -1;
+	bool arrangerLoopActive = false;
+	bool arrangerLoopFound = false;
 
 	// reverb mode is freeverb for songs that predate having multiple options. New songs will set it to mutable anyway
 	// so this is only used as a fallback
@@ -1579,6 +1588,25 @@ unknownTag:
 			else if (!strcmp(tagName, "arrangementAutoScrollOn")) {
 				arrangerAutoScrollModeActive = reader.readTagOrAttributeValueInt();
 				reader.exitTag("arrangementAutoScrollOn");
+			}
+
+			// Arrangement loop attributes
+			else if (!strcmp(tagName, "arrangerLoopStart")) {
+				arrangerLoopStart = reader.readTagOrAttributeValueInt();
+				arrangerLoopFound = true;
+				reader.exitTag("arrangerLoopStart");
+			}
+
+			else if (!strcmp(tagName, "arrangerLoopEnd")) {
+				arrangerLoopEnd = reader.readTagOrAttributeValueInt();
+				arrangerLoopFound = true;
+				reader.exitTag("arrangerLoopEnd");
+			}
+
+			else if (!strcmp(tagName, "arrangerLoopActive")) {
+				arrangerLoopActive = reader.readTagOrAttributeValueInt() != 0;
+				arrangerLoopFound = true;
+				reader.exitTag("arrangerLoopActive");
 			}
 
 			else if (!strcmp(tagName, "timePerTimerTick")) {
@@ -2250,6 +2278,14 @@ skipInstance:
 	AudioEngine::logAction("aaa5.2");
 
 	AudioEngine::routineWithClusterLoading(); // -----------------------------------
+
+	// Store arrangement loop state if found in file to apply later
+	pendingArrangerLoopFound = arrangerLoopFound;
+	if (arrangerLoopFound && arrangerLoopStart != -1 && arrangerLoopEnd != -1) {
+		pendingArrangerLoopStart = arrangerLoopStart;
+		pendingArrangerLoopEnd = arrangerLoopEnd;
+		pendingArrangerLoopActive = arrangerLoopActive;
+	}
 
 	return Error::NONE;
 }
@@ -6042,5 +6078,29 @@ numElements; c++) { Clip* clip; if (!doingClipsProvidedByOutput) { clip = clipAr
 traverseClips; }
     }
  */
+
+// Apply pending arrangement loop data (call after song is fully loaded and arrangement is ready)
+void Song::applyPendingArrangementLoopData() {
+	// Safety check - ensure we're not in a critical audio processing context
+	if (sdRoutineLock) {
+		return;
+	}
+
+	// Apply loop data if we found valid data in the file
+	if (pendingArrangerLoopFound && pendingArrangerLoopStart != -1 && pendingArrangerLoopEnd != -1) {
+		arrangement.getLoop().setFromDeserialized(pendingArrangerLoopStart, pendingArrangerLoopEnd,
+		                                          pendingArrangerLoopActive);
+	}
+	else {
+		// No valid loop data found, clear any existing loop
+		arrangement.getLoop().clear();
+	}
+
+	// Clear pending data after processing
+	pendingArrangerLoopStart = -1;
+	pendingArrangerLoopEnd = -1;
+	pendingArrangerLoopActive = false;
+	pendingArrangerLoopFound = false;
+}
 
 //    for (Output* output = firstOutput; output; output = output->next) {

@@ -620,6 +620,9 @@ swapDone:
 		}
 	}
 
+	// Apply pending arrangement loop data now that everything is completely loaded
+	currentSong->applyPendingArrangementLoopData();
+
 	performingLoad = false;
 }
 

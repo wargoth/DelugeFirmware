@@ -38,9 +38,8 @@ public:
 	int32_t getLoopStartPosition() const { return startPos_; }
 	bool isPositionAtEnd(int32_t pos) const { return pos >= endPos_; }
 
-	// Serialization
-	void writeToFile() const;
-	void readFromFile();
+	// Methods for deserialization
+	void setFromDeserialized(int32_t startPos, int32_t endPos, bool active);
 
 private:
 	bool exists_{false};

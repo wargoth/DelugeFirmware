@@ -182,6 +182,9 @@ public:
 	void setSongFullPath(const char* fullPath);
 	int32_t getInputTickMagnitude() const { return insideWorldTickMagnitude + insideWorldTickMagnitudeOffsetFromBPM; }
 
+	// Apply pending arrangement loop data (call after song is fully loaded and arrangement is ready)
+	void applyPendingArrangementLoopData();
+
 	GlobalEffectableForSong globalEffectable;
 
 	ClipArray sessionClips;
@@ -248,6 +251,12 @@ public:
 	                                               // other functions not to look at Output::clipInstances
 
 	bool paramsInAutomationMode;
+
+	// Temporary storage for arrangement loop data during song loading
+	int32_t pendingArrangerLoopStart = -1;
+	int32_t pendingArrangerLoopEnd = -1;
+	bool pendingArrangerLoopActive = false;
+	bool pendingArrangerLoopFound = false;
 
 	bool inClipMinderViewOnLoad; // Temp variable only valid while loading Song
 

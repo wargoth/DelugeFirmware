@@ -440,6 +440,7 @@ void setUIForLoadedSong(Song* song) {
 	setRootUILowLevel(newUI);
 
 	getCurrentUI()->opened();
+
 	if (display->haveOLED()) {
 		renderUIsForOled();
 	}
@@ -463,6 +464,9 @@ void setupBlankSong() {
 
 	setUIForLoadedSong(currentSong);
 	AudioEngine::mustUpdateReverbParamsBeforeNextRender = true;
+
+	// Apply any pending arrangement loop data (should be empty for new songs)
+	currentSong->applyPendingArrangementLoopData();
 }
 
 /// Can only happen after settings, which includes default settings, have been read
