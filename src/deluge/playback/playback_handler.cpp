@@ -1450,7 +1450,9 @@ void PlaybackHandler::doSongSwap(bool preservePlayPosition) {
 		if (currentSong->lastClipInstanceEnteredStartPos != -1) {
 			currentPlaybackMode = &arrangement;
 			arrangement.setupPlayback();
-			arrangement.resetPlayPos(currentSong->lastClipInstanceEnteredStartPos);
+
+			// Determine the correct starting position BEFORE calling resetPlayPos
+			int32_t startPos = currentSong->lastClipInstanceEnteredStartPos;
 
 			// Special case: if the new song has an active arrangement loop,
 			// we should start from the loop position instead of the saved position.
@@ -1458,19 +1460,19 @@ void PlaybackHandler::doSongSwap(bool preservePlayPosition) {
 			if (currentSong->shouldLoopArrangement()) {
 				int32_t loopStart = currentSong->getArrangementLoop().getStart();
 				int32_t loopEnd = currentSong->getArrangementLoop().getEnd();
-				int32_t currentPos = currentSong->lastClipInstanceEnteredStartPos;
 
 				// Validate loop data and check if we should jump to loop start
-				if (loopStart >= 0 && loopEnd > loopStart && currentPos < loopEnd) {
-					// SAFER: Instead of calling arrangement.resetPlayPos() which triggers complex
-					// UI updates and parameter system access that might not be ready during song loading,
-					// just update the core position variables directly
-					arrangement.lastProcessedPos = loopStart;
-					arrangement.playbackStartedAtPos = loopStart;
-
-					// Initialize playhead state to ensure proper loop behavior
-					currentSong->getArrangementLoop().initializePlayheadState(loopStart);
+				if (loopStart >= 0 && loopEnd > loopStart && startPos < loopEnd) {
+					startPos = loopStart;
 				}
+			}
+
+			// Now reset play position with the correct starting position
+			arrangement.resetPlayPos(startPos);
+
+			// Initialize playhead state for loop tracking
+			if (currentSong->shouldLoopArrangement()) {
+				currentSong->getArrangementLoop().initializePlayheadState(startPos);
 			}
 		}
 
@@ -2994,7 +2996,29 @@ void PlaybackHandler::switchToArrangement() {
 	stopOutputRecordingAtLoopEnd = false;
 	session.endPlayback();
 	arrangement.setupPlayback();
-	arrangement.resetPlayPos(arrangementPosToStartAtOnSwitch);
+
+	// Determine the correct starting position for arrangement playback
+	int32_t startPos = arrangementPosToStartAtOnSwitch;
+
+	// If the song has an active arrangement loop and the intended start position
+	// is before or within the loop, consider starting from the loop start
+	if (currentSong && currentSong->shouldLoopArrangement()) {
+		int32_t loopStart = currentSong->getArrangementLoop().getStart();
+		int32_t loopEnd = currentSong->getArrangementLoop().getEnd();
+
+		// If starting position is before loop end, use loop start for consistency
+		if (loopStart >= 0 && loopEnd > loopStart && startPos < loopEnd) {
+			startPos = loopStart;
+		}
+	}
+
+	arrangement.resetPlayPos(startPos);
+
+	// Initialize playhead state for loop tracking
+	if (currentSong && currentSong->shouldLoopArrangement()) {
+		currentSong->getArrangementLoop().initializePlayheadState(startPos);
+	}
+
 	arrangerView.reassessWhetherDoingAutoScroll();
 	if (display->haveOLED()) {
 		if (!isUIModeActive(UI_MODE_CLIP_PRESSED_IN_SONG_VIEW)
