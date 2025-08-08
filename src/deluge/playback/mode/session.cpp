@@ -1550,6 +1550,35 @@ LaunchStatus Session::investigateSyncedLaunch(Clip* waitForClip, uint32_t* curre
 bool Session::armForSongSwap() {
 	D_PRINTLN("Session::armForSongSwap()");
 
+	// Check if there's an active arrangement loop - if so, wait for loop end instead of longest clip
+	// Only enable this during active playback when system is fully initialized
+	if (currentSong && currentSong->shouldLoopArrangement() && (playbackHandler.playbackState & PLAYBACK_SWITCHED_ON)) {
+		// Simple approach: use the arrangement loop length as quantization instead of complex timing
+		Clip* waitForClip = currentSong->getLongestClip(false, true);
+		if (waitForClip) {
+			uint32_t quantization = currentSong->getArrangementLoop().getLength();
+			uint32_t currentPosWithinQuantization =
+			    waitForClip->getClipToRecordTo()->getActualCurrentPosAsIfPlayingInForwardDirection();
+
+			// Calculate when the current loop iteration will end
+			int32_t pos = currentPosWithinQuantization % quantization;
+			int32_t ticksTilLoopEnd = quantization - pos;
+
+			if (ticksTilLoopEnd > 0) {
+				scheduleLaunchTiming(playbackHandler.getActualSwungTickCount() + ticksTilLoopEnd, 1, quantization);
+				D_PRINTLN("ticksTilSwap (arrangement loop):  %d", ticksTilLoopEnd);
+				return true;
+			}
+		}
+
+		// Fallback to immediate swap if something went wrong
+		playbackHandler.doSongSwap();
+		playbackHandler.endPlayback();
+		playbackHandler.setupPlaybackUsingInternalClock();
+		return false;
+	}
+
+	// Default behavior: wait for longest clip to finish
 	Clip* waitForClip = currentSong->getLongestClip(false, true);
 
 	uint32_t quantization;
@@ -1581,6 +1610,33 @@ bool Session::armForSongSwap() {
 // Returns whether we are now armed. If not, it means it's just done the swap already in this function
 bool Session::armForSwitchToArrangement() {
 
+	// Check if there's an active arrangement loop - if so, wait for loop end instead of longest clip
+	// Only enable this during active playback when system is fully initialized
+	if (currentSong && currentSong->shouldLoopArrangement() && (playbackHandler.playbackState & PLAYBACK_SWITCHED_ON)) {
+		// Simple approach: use the arrangement loop length as quantization instead of complex timing
+		Clip* waitForClip = currentSong->getLongestClip(false, true);
+		if (waitForClip) {
+			uint32_t quantization = currentSong->getArrangementLoop().getLength();
+			uint32_t currentPosWithinQuantization =
+			    waitForClip->getClipToRecordTo()->getActualCurrentPosAsIfPlayingInForwardDirection();
+
+			// Calculate when the current loop iteration will end
+			int32_t pos = currentPosWithinQuantization % quantization;
+			int32_t ticksTilLoopEnd = quantization - pos;
+
+			if (ticksTilLoopEnd > 0) {
+				scheduleLaunchTiming(playbackHandler.getActualSwungTickCount() + ticksTilLoopEnd, 1, quantization);
+				switchToArrangementAtLaunchEvent = true;
+				return true;
+			}
+		}
+
+		// Fallback to immediate switch if something went wrong
+		playbackHandler.switchToArrangement();
+		return false;
+	}
+
+	// Default behavior: wait for longest clip to finish
 	Clip* waitForClip = currentSong->getLongestClip(false, true);
 
 	uint32_t quantization;
