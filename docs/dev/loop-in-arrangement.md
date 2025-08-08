@@ -2,233 +2,172 @@
 
 ## Current Status: COMPREHENSIVE REFACTORING COMPLETED ✅
 
-**Major architectural refactoring implemented successfully** - The arrangement loop system has been completely redesigned with a clean, maintainable architecture that resolves all previous issues:
+**Major architectural refactoring implemented successfully** - The arrangement loop system has been completely redesigned with proper separation of concerns and moved to the Song class for correct data ownership:
 
 ### Refactoring Overview:
 
-**Complete Architecture Redesign**
-- **Before**: Loop state scattered across multiple files with complex timing logic (~40 lines in PlaybackHandler alone)
-- **After**: Clean separation of concerns with dedicated `ArrangementLoop` class and simplified integrations
+**Architectural Ownership Change**
+- **Before**: Loop data stored in Arrangement class (playback mode)
+- **After**: Loop data moved to Song class (data model) with clean separation of concerns
 
 **Key Architectural Changes:**
-1. **New ArrangementLoop Class** (`src/deluge/model/arrangement_loop.h/cpp`):
-   - Encapsulates all loop state and behavior in a single class
-   - Provides clean interface for loop management
-   - Handles playhead state tracking to prevent jarring jumps
+1. **ArrangementLoop in Song Class** (`src/deluge/model/song/song.h/cpp`):
+   - Loop data moved from Arrangement to Song for proper data ownership
+   - Song directly manages its own persistent state including loops
+   - Clean accessor methods: `getArrangementLoop()`, `shouldLoopArrangement()`, `checkForArrangementLoopAndGetNewPosition()`
 
-2. **Simplified PlaybackHandler** (`src/deluge/playback/playback_handler.cpp`):
-   - Reduced from ~40 lines of complex loop logic to ~10 lines
-   - Simple call to `arrangement.checkForLoopAndGetNewPosition()`
-   - Eliminated complex tick counter adjustments
+2. **Simplified Arrangement Class** (`src/deluge/playback/mode/arrangement.h/cpp`):
+   - Removed ArrangementLoop member and associated loop management
+   - Arrangement now references Song's loop data instead of owning it
+   - Clean separation between data (Song) and behavior (Arrangement)
 
-3. **Centralized Loop Management** (`src/deluge/playback/mode/arrangement.h/cpp`):
-   - Single integration point via `ArrangementLoop& getLoop()`
-   - Clean interface: `shouldLoopArrangement()` inline method
-   - Proper separation from playback logic
+3. **Direct Song Serialization** (`src/deluge/model/song/song.cpp`):
+   - Song directly saves/loads its own loop data without coupling to Arrangement
+   - Eliminated temporary "pending" variables during loading
+   - Clean data flow: XML → Song loop data → immediate application
 
-4. **Cleaned ArrangerView** (`src/deluge/gui/views/arranger_view.h/cpp`):
-   - Reduced from 6 state variables to 1 (`arrangerLoopCreationStartPos`)
-   - All loop operations use `arrangement.getLoop()` interface
-   - Consistent state management
+4. **Updated Integration Points**:
+   - PlaybackHandler uses `currentSong->shouldLoopArrangement()` and `currentSong->checkForArrangementLoopAndGetNewPosition()`
+   - ArrangerView uses `currentSong->getArrangementLoop()` for all loop operations
+   - AudioRecorder uses `currentSong->getArrangementLoop()` for loop-constrained recording
 
-### Critical UX Feature Restored:
-
-**arrangerLoopPlayheadInside Functionality**
-- **Purpose**: Prevents jarring jumps when creating loops behind the playhead
-- **Implementation**: `playheadInside_` state tracking with `updatePlayheadState()` method
-- **Behavior**: Only loops back when playhead has been inside loop and reaches end
-- **Integration**: Automatic state management during loop activation/deactivation
+5. **Removed Obsolete Methods** ⚠️:
+   - **`Song::applyPendingArrangementLoopData()`** - No longer needed since loop data is applied directly during loading
+   - All calls to this method have been removed from initialization sequences
+   - Clean, simplified initialization flow without unnecessary deferred operations
 
 ### Root Cause Analysis:
-The original issues stemmed from:
-1. **Scattered State Management**: Loop state was spread across 3+ files with inconsistent interfaces
-2. **Complex Timing Logic**: PlaybackHandler contained brittle tick counter manipulation
-3. **Missing UX Logic**: No tracking of playhead state relative to loop boundaries
-4. **Tight Coupling**: Loop logic was intertwined with general playback timing
+The original issues stemmed from **architectural violations**:
+1. **Data/Behavior Mixing**: Loop data (persistent state) was stored in Arrangement (behavior/playback mode)
+2. **Coupling**: Song had to reach into Arrangement to access loop data for saving
+3. **Temporary Variables**: Song needed "pending" variables as workaround for the coupling
+4. **Inconsistency**: All other song data lived in Song, but loop lived in Arrangement
+5. **Deferred Application**: Complex initialization sequences with pending data application
 
 ### Architecture Benefits:
-- ✅ **Clean Separation**: Each component has a single responsibility
-- ✅ **Maintainable**: Changes to loop behavior isolated to ArrangementLoop class
-- ✅ **Testable**: Clear interfaces enable comprehensive unit testing
-- ✅ **Robust**: Simplified logic reduces edge cases and timing issues
-- ✅ **Extensible**: Easy to add new loop features without affecting playback system
+- ✅ **Proper Separation**: Song owns data, Arrangement provides behavior
+- ✅ **Loose Coupling**: Arrangement references Song's data instead of owning it
+- ✅ **Direct Serialization**: Song saves/loads its own data without external dependencies
+- ✅ **Consistency**: All persistent song data lives in single location
+- ✅ **Clean Interfaces**: Clear ownership and well-defined accessor methods
+- ✅ **Extensibility**: Easy to add new loop features without affecting multiple systems
+- ✅ **Simplified Initialization**: No deferred operations or pending data application needed
 
 ---
 
-**Key Architectural Changes:**
-1. **New ArrangementLoop Class** (`src/deluge/model/arrangement_loop.h/cpp`):
-   - Encapsulates all loop state and behavior in a single class
-   - Provides clean interface for loop management
-   - Handles playhead state tracking to prevent jarring jumps
-
-2. **Simplified PlaybackHandler** (`src/deluge/playback/playback_handler.cpp`):
-   - Reduced from ~40 lines of complex loop logic to ~10 lines
-   - Simple call to `arrangement.checkForLoopAndGetNewPosition()`
-   - Eliminated complex tick counter adjustments
-
-3. **Centralized Loop Management** (`src/deluge/playback/mode/arrangement.h/cpp`):
-   - Single integration point via `ArrangementLoop& getLoop()`
-   - Clean interface: `shouldLoopArrangement()` inline method
-   - Proper separation from playback logic
-
-4. **Cleaned ArrangerView** (`src/deluge/gui/views/arranger_view.h/cpp`):
-   - Reduced from 6 state variables to 1 (`arrangerLoopCreationStartPos`)
-   - All loop operations use `arrangement.getLoop()` interface
-   - Consistent state management
-
-### Critical UX Feature Restored:
-
-**arrangerLoopPlayheadInside Functionality**
-- **Purpose**: Prevents jarring jumps when creating loops behind the playhead
-- **Implementation**: `playheadInside_` state tracking with `updatePlayheadState()` method
-- **Behavior**: Only loops back when playhead has been inside loop and reaches end
-- **Integration**: Automatic state management during loop activation/deactivation
-
-### Root Cause Analysis:
-The original issues stemmed from:
-1. **Scattered State Management**: Loop state was spread across 3+ files with inconsistent interfaces
-2. **Complex Timing Logic**: PlaybackHandler contained brittle tick counter manipulation
-3. **Missing UX Logic**: No tracking of playhead state relative to loop boundaries
-4. **Tight Coupling**: Loop logic was intertwined with general playback timing
-
-### Architecture Benefits:
-- ✅ **Clean Separation**: Each component has a single responsibility
-- ✅ **Maintainable**: Changes to loop behavior isolated to ArrangementLoop class
-- ✅ **Testable**: Clear interfaces enable comprehensive unit testing
-- ✅ **Robust**: Simplified logic reduces edge cases and timing issues
-- ✅ **Extensible**: Easy to add new loop features without affecting playback system
-
 ## New Architecture Overview
 
-The loop system has been completely refactored around a dedicated `ArrangementLoop` class that provides clean state management and behavior encapsulation.
+The loop system follows proper separation of concerns with Song class owning all persistent data.
 
 ### Core Components:
 
-**ArrangementLoop Class** (`src/deluge/model/arrangement_loop.h/cpp`)
+**Song Class** (`src/deluge/model/song/song.h/cpp`)
 ```cpp
-class ArrangementLoop {
+class Song {
 private:
-    int32_t start_;          // Loop start position (ticks)
-    int32_t end_;            // Loop end position (ticks)
-    bool active_;            // Whether loop is currently active
-    bool playheadInside_;    // Tracks if playhead is inside loop for UX
+    ArrangementLoop arrangementLoop_;  // Owned by Song for proper data ownership
 
 public:
-    void create(int32_t startPos, int32_t endPos);
-    void clear();
-    bool isActive() const;
-    int32_t checkForLoopAndGetNewPosition(int32_t currentPos);
-    void updatePlayheadState(int32_t currentPos);
-    void initializePlayheadState(int32_t currentPos);
-    bool shouldLoopAtPosition(int32_t pos) const;
-    // ... accessors for start/end positions
+    // Clean interface for loop access
+    ArrangementLoop& getArrangementLoop() { return arrangementLoop_; }
+    const ArrangementLoop& getArrangementLoop() const { return arrangementLoop_; }
+    bool shouldLoopArrangement() const { return arrangementLoop_.isActive(); }
+    int32_t checkForArrangementLoopAndGetNewPosition(int32_t currentPos);
 };
 ```
 
 **Integration Points:**
 
-1. **Arrangement Class** (`src/deluge/playback/mode/arrangement.h/cpp`)
-   - Central integration point with `ArrangementLoop loop_` member
-   - `checkForLoopAndGetNewPosition()` method for playback
-   - `shouldLoopArrangement()` inline helper for UI
+1. **Song Class** (`src/deluge/model/song/song.h/cpp`)
+   - Owns ArrangementLoop as private member
+   - Provides public accessor methods for loop operations
+   - Directly saves/loads loop data in `writeToFile()` and `readFromFile()`
+   - Implements `checkForArrangementLoopAndGetNewPosition()` for playback integration
 
-2. **PlaybackHandler** (`src/deluge/playback/playback_handler.cpp`)
-   - Simplified to single call: `arrangement.checkForLoopAndGetNewPosition(currentPos)`
-   - No complex tick counter management or timing logic
+2. **Arrangement Class** (`src/deluge/playback/mode/arrangement.h/cpp`)
+   - References Song's loop data via `currentSong->getArrangementLoop()`
+   - No loop ownership or management responsibility
+   - Clean separation between data and playback behavior
 
-3. **ArrangerView** (`src/deluge/gui/views/arranger_view.h/cpp`)
-   - Uses `arrangement.getLoop()` for all loop operations
-   - Single remaining state variable: `arrangerLoopCreationStartPos`
-   - Clean separation between UI state and loop logic
+3. **PlaybackHandler** (`src/deluge/playback/playback_handler.cpp`)
+   - Uses `currentSong->shouldLoopArrangement()` for loop checks
+   - Uses `currentSong->checkForArrangementLoopAndGetNewPosition()` for position updates
 
-### Playhead State Management:
+4. **ArrangerView** (`src/deluge/gui/views/arranger_view.h/cpp`)
+   - Uses `currentSong->getArrangementLoop()` for all UI operations
+   - Clean interface with Song's loop data instead of Arrangement
 
-**Critical UX Feature Restoration:**
-The `playheadInside_` tracking prevents jarring jumps when creating loops behind the playhead:
+### Data Flow:
 
-```cpp
-void ArrangementLoop::updatePlayheadState(int32_t currentPos) {
-    if (!active_) return;
-
-    if (currentPos >= start_ && currentPos < end_) {
-        playheadInside_ = true;  // Playhead entered loop
-    }
-}
-
-int32_t ArrangementLoop::checkForLoopAndGetNewPosition(int32_t currentPos) {
-    if (!active_ || !playheadInside_) {
-        updatePlayheadState(currentPos);
-        return currentPos;  // Don't loop if playhead hasn't been inside
-    }
-
-    if (shouldLoopAtPosition(currentPos)) {
-        return start_;  // Loop back to start
-    }
-
-    return currentPos;
-}
+**Before Refactoring (Problematic):**
+```
+Song.writeToFile() → arrangement.getLoop() → Save loop data (coupling)
+Song.readFromFile() → pendingArrangerLoopData (temporary storage)
+Song.applyPendingArrangementLoopData() → arrangement.getLoop() (complex flow)
 ```
 
-### Architecture Benefits:
-
-**Before Refactoring:**
-- Loop state scattered across ArrangerView (6 variables), PlaybackHandler (complex logic), and UI files
-- Complex tick counter manipulation in PlaybackHandler (~40 lines)
-- No centralized state management or clear ownership
-- Brittle timing logic prone to edge cases
-
-**After Refactoring:**
-- Single `ArrangementLoop` class owns all loop state and behavior
-- PlaybackHandler simplified to ~10 lines with single method call
-- Clear separation of concerns and well-defined interfaces
-- Comprehensive test coverage validates behavior
+**After Refactoring (Clean):**
+```
+Song.writeToFile() → arrangementLoop_ → Save loop data (direct)
+Song.readFromFile() → arrangementLoop_ → Apply loop data immediately (direct)
+PlaybackHandler → currentSong->shouldLoopArrangement() (clean reference)
+```
 
 ## Testing
 
-A comprehensive test suite has been created at `tests/unit/arrangement_loop_tests.cpp` that validates:
-
-### Core Functionality Tests:
-- **Loop Creation**: Verify proper initialization with start/end positions
-- **State Management**: Test activation/deactivation behavior
-- **Boundary Detection**: Validate position checking and loop triggering
-- **Playhead Tracking**: Ensure `playheadInside_` state updates correctly
-
-### Edge Case Tests:
-- **Empty Loops**: Handle zero-length or invalid loop ranges
-- **Boundary Conditions**: Test exact start/end position behavior
-- **State Transitions**: Verify correct behavior during activation changes
-- **Integration**: Test with various playback scenarios
-
-### Test Execution:
-```bash
-# Note: 32-bit cross-compilation test environment setup required
-./dbt build debug  # Ensures main firmware compiles correctly
-# Unit tests validate refactoring doesn't break existing functionality
-```
+The existing comprehensive test suite at `tests/unit/arrangement_loop_tests.cpp` continues to validate loop behavior with the new architecture.
 
 ## Implementation Files
 
 ### Core Loop Logic:
-- **`src/deluge/model/arrangement_loop.h/cpp`** - ArrangementLoop class implementation
-- **`src/deluge/playback/mode/arrangement.h/cpp`** - Loop integration with playback system
-- **`src/deluge/playback/playback_handler.cpp`** - Simplified playback timing logic
-- **`src/deluge/gui/views/arranger_view.h/cpp`** - UI integration and loop creation
+- **`src/deluge/model/arrangement_loop.h/cpp`** - ArrangementLoop class (unchanged)
+- **`src/deluge/model/song/song.h/cpp`** - Song class with integrated loop management
+- **`src/deluge/playback/mode/arrangement.h/cpp`** - Simplified Arrangement class
+- **`src/deluge/playback/playback_handler.cpp`** - Updated to use Song's loop interface
+- **`src/deluge/gui/views/arranger_view.h/cpp`** - Updated to use Song's loop interface
 
-### Test Files:
-- **`tests/unit/arrangement_loop_tests.cpp`** - Comprehensive unit tests
-- **`tests/CMakeLists.txt`** - Updated to include loop tests
+### Updated Integration Points:
+- **`src/deluge/gui/ui/audio_recorder.cpp`** - Loop-constrained recording
+- All files now consistently use `currentSong->getArrangementLoop()` pattern
 
 ## Migration Notes
 
 ### For Developers:
-- **Old scattered variables** (e.g., `arrangerView.arrangerLoopExists`) replaced with `arrangement.getLoop().isActive()`
-- **Complex timing logic** in PlaybackHandler simplified to single method call
-- **State management** centralized in ArrangementLoop class with clear interfaces
+- **Old pattern**: `arrangement.getLoop()` → **New pattern**: `currentSong->getArrangementLoop()`
+- **Old pattern**: `arrangement.shouldLoopArrangement()` → **New pattern**: `currentSong->shouldLoopArrangement()`
+- **Loop data access**: Always through Song class, never through Arrangement
+- **State management**: Song owns and manages all loop state
 
-### For Future Features:
-- **Extension Point**: New loop features can be added to ArrangementLoop class without affecting other systems
-- **Testing**: Well-defined interfaces enable easy unit testing of loop behavior
-- **Maintenance**: Bug fixes and improvements isolated to single class
+### Architectural Benefits:
+- **Clear Ownership**: Song class owns all persistent data including loops
+- **Loose Coupling**: Arrangement references Song data instead of owning it
+- **Direct I/O**: Song directly saves/loads its own data without external dependencies
+- **Consistency**: All song-level data in single location following established patterns
+
+## Development Guidelines
+
+### When Working with Loop System:
+1. **Use Song Interface**: Always access loop state through `currentSong->getArrangementLoop()` methods
+2. **Respect Ownership**: Song owns data, other classes reference it
+3. **Follow Patterns**: Use established Song accessor patterns for consistency
+4. **Test Thoroughly**: Run existing tests to validate architectural changes
+
+### Common Operations:
+```cpp
+// Check if loop is active
+if (currentSong && currentSong->shouldLoopArrangement()) { /* ... */ }
+
+// Create a new loop
+currentSong->getArrangementLoop().create(startPos, endPos);
+
+// Clear existing loop
+currentSong->getArrangementLoop().clear();
+
+// Check for loop in playback
+int32_t newPos = currentSong->checkForArrangementLoopAndGetNewPosition(currentPos);
+```
+
+This refactoring provides a solid foundation for future loop-related features while maintaining clean architecture, proper separation of concerns, and comprehensive test coverage.
 
 ## Development Guidelines
 

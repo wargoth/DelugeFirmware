@@ -20,6 +20,7 @@
 #include "definitions_cxx.hpp"
 #include "gui/menu_item/reverb/model.h"
 #include "io/midi/learned_midi.h"
+#include "model/arrangement_loop.h"
 #include "model/clip/clip.h"
 #include "model/clip/clip_array.h"
 #include "model/global_effectable/global_effectable_for_song.h"
@@ -182,8 +183,11 @@ public:
 	void setSongFullPath(const char* fullPath);
 	int32_t getInputTickMagnitude() const { return insideWorldTickMagnitude + insideWorldTickMagnitudeOffsetFromBPM; }
 
-	// Apply pending arrangement loop data (call after song is fully loaded and arrangement is ready)
-	void applyPendingArrangementLoopData();
+	// Arrangement loop management
+	ArrangementLoop& getArrangementLoop() { return arrangementLoop_; }
+	const ArrangementLoop& getArrangementLoop() const { return arrangementLoop_; }
+	bool shouldLoopArrangement() const { return arrangementLoop_.isActive(); }
+	int32_t checkForArrangementLoopAndGetNewPosition(int32_t currentPos);
 
 	GlobalEffectableForSong globalEffectable;
 
@@ -252,11 +256,8 @@ public:
 
 	bool paramsInAutomationMode;
 
-	// Temporary storage for arrangement loop data during song loading
-	int32_t pendingArrangerLoopStart = -1;
-	int32_t pendingArrangerLoopEnd = -1;
-	bool pendingArrangerLoopActive = false;
-	bool pendingArrangerLoopFound = false;
+	// Arrangement loop - moved from Arrangement class for proper data ownership
+	ArrangementLoop arrangementLoop_;
 
 	bool inClipMinderViewOnLoad; // Temp variable only valid while loading Song
 

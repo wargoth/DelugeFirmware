@@ -192,7 +192,7 @@ void PlaybackHandler::playButtonPressed(int32_t buttonPressLatency) {
 	if (!playbackState) {
 		// Check if we're starting playback with an active loop (simplified)
 		bool startingWithActiveLoop = false;
-		if (currentSong && arrangement.shouldLoopArrangement()) {
+		if (currentSong && currentSong->shouldLoopArrangement()) {
 			startingWithActiveLoop = true;
 		}
 
@@ -410,10 +410,10 @@ void PlaybackHandler::setupPlaybackUsingInternalClock(int32_t buttonPressLatency
 	}
 	// Check if there's an active loop and starting playback - only jump to loop start if current position is before
 	// loop end
-	else if (currentSong && arrangement.shouldLoopArrangement() && !restartingPlayback) {
+	else if (currentSong && currentSong->shouldLoopArrangement() && !restartingPlayback) {
 		// Get current position (scroll position is the default starting position)
 		int32_t currentPos = currentSong->xScroll[navSys];
-		const ArrangementLoop& loop = arrangement.getLoop();
+		const ArrangementLoop& loop = currentSong->getArrangementLoop();
 		// Only jump to loop start if current position is before the loop end
 		if (currentPos < loop.getEnd()) {
 			newPos = loop.getStart();
@@ -958,7 +958,7 @@ void PlaybackHandler::actionSwungTick() {
 			// Check for arrangement loops - simplified approach
 			if (currentPlaybackMode == &arrangement && currentSong) {
 				int32_t currentPos = arrangement.lastProcessedPos;
-				int32_t newPos = arrangement.checkForLoopAndGetNewPosition(currentPos);
+				int32_t newPos = currentSong->checkForArrangementLoopAndGetNewPosition(currentPos);
 
 				if (newPos != currentPos) {
 					// Loop occurred - reset position
@@ -1451,6 +1451,27 @@ void PlaybackHandler::doSongSwap(bool preservePlayPosition) {
 			currentPlaybackMode = &arrangement;
 			arrangement.setupPlayback();
 			arrangement.resetPlayPos(currentSong->lastClipInstanceEnteredStartPos);
+
+			// Special case: if the new song has an active arrangement loop,
+			// we should start from the loop position instead of the saved position.
+			// Only do this during actual song swaps, not during startup initialization.
+			if (currentSong->shouldLoopArrangement()) {
+				int32_t loopStart = currentSong->getArrangementLoop().getStart();
+				int32_t loopEnd = currentSong->getArrangementLoop().getEnd();
+				int32_t currentPos = currentSong->lastClipInstanceEnteredStartPos;
+
+				// Validate loop data and check if we should jump to loop start
+				if (loopStart >= 0 && loopEnd > loopStart && currentPos < loopEnd) {
+					// SAFER: Instead of calling arrangement.resetPlayPos() which triggers complex
+					// UI updates and parameter system access that might not be ready during song loading,
+					// just update the core position variables directly
+					arrangement.lastProcessedPos = loopStart;
+					arrangement.playbackStartedAtPos = loopStart;
+
+					// Initialize playhead state to ensure proper loop behavior
+					currentSong->getArrangementLoop().initializePlayheadState(loopStart);
+				}
+			}
 		}
 
 		// Or if we weren't switching to the arranger, the equivalent of that would get called from
