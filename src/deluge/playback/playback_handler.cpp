@@ -408,9 +408,10 @@ void PlaybackHandler::setupPlaybackUsingInternalClock(int32_t buttonPressLatency
 	else if (isArrangementPadPressed) {
 		newPos = arrangerView.lastInteractedArrangementPos;
 	}
-	// Check if there's an active loop and starting playback - only jump to loop start if current position is before
-	// loop end
-	else if (currentSong && currentSong->shouldLoopArrangement() && !restartingPlayback) {
+	// Check if there's an active loop and starting playback - ONLY in arrangement mode
+	// Session mode should never be affected by arrangement loops
+	else if (currentPlaybackMode == &arrangement && currentSong && currentSong->shouldLoopArrangement()
+	         && !restartingPlayback) {
 		// Get current position (scroll position is the default starting position)
 		int32_t currentPos = currentSong->xScroll[navSys];
 		const ArrangementLoop& loop = currentSong->getArrangementLoop();

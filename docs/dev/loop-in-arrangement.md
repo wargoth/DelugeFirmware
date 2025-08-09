@@ -257,6 +257,11 @@ This refactoring provides a solid foundation for future loop-related features wh
   - **Root Cause**: Multiple factors: (1) Setting `swungTicksTilNextEvent = 0` can cause infinite loops during initialization, (2) Loop logic needed proper safety checks without being too restrictive during normal playback
   - **Solution**: (1) Restored `swungTicksTilNextEvent = 1` after `resetPlayPos()` for safe event processing, (2) Implemented balanced safety checks: `currentPlaybackMode == &arrangement`, `currentSong`, `playbackState & PLAYBACK_SWITCHED_ON`, `!currentlyActioningSwungTickOrResettingPlayPos` - sufficient to prevent initialization issues while allowing normal loop functionality
   - **Location**: `PlaybackHandler::actionSwungTick()` in loop-back logic around line 970-1000
+- ✅ **Session Mode Isolation Fix**: Fixed critical issue where arrangement loops affected session mode playback
+  - **Issue**: Session mode clips would incorrectly start from arrangement loop positions instead of their natural positions
+  - **Root Cause**: Loop startup logic in `setupPlaybackUsingInternalClock()` was applied to all playback modes without checking current mode
+  - **Solution**: Added `currentPlaybackMode == &arrangement` condition to restrict loop logic to arrangement mode only
+  - **Location**: `PlaybackHandler::setupPlaybackUsingInternalClock()` around lines 410-420
 
 **Loop Playback Start Position (Task 1 - Partial)**
 - ✅ Smart loop engagement without jarring jumps
@@ -315,6 +320,27 @@ This refactoring provides a solid foundation for future loop-related features wh
 - ✅ Implementation location: `ArrangerView::renderLoopRow()` and `ArrangerView::getRainbowColor()` in `/src/deluge/gui/views/arranger_view.cpp`
 
 ### Critical Implementation Findings
+
+**Session Mode Loop Isolation Fix**
+During implementation, a critical issue was discovered and resolved:
+
+**The Problem:**
+- Arrangement loop logic in `setupPlaybackUsingInternalClock()` was being applied to ALL playback modes
+- This caused session mode playback to be affected by active arrangement loops
+- Session clips would incorrectly start from arrangement loop positions instead of their natural positions
+
+**The Solution:**
+- Added `currentPlaybackMode == &arrangement` condition to loop logic in `setupPlaybackUsingInternalClock()`
+- Session mode playback is now completely isolated from arrangement loop state
+- Arrangement loops only affect playback when in arrangement mode
+
+**Root Cause:**
+The loop startup position logic was checking `currentSong->shouldLoopArrangement()` without verifying the current playback mode. This violated the separation of concerns between session and arrangement modes.
+
+**Implementation Location:**
+`PlaybackHandler::setupPlaybackUsingInternalClock()` in `/src/deluge/playback/playback_handler.cpp` around lines 410-420.
+
+**Note:** The runtime loop logic in `actionSwungTick()` was already correctly scoped to arrangement mode only.
 
 **Row Indexing Architecture Discovery**
 During implementation, a critical misunderstanding of the arrangement view coordinate system was discovered and resolved:
@@ -403,6 +429,7 @@ w
 - ✅ loop jumps back if created before the play head - **FIXED** (STATE-BASED APPROACH with infinite loop prevention)
 - ✅ first notes don't play after loop reset when loop ends at clip boundary - **FIXED** (NOTE ROW RESUME PLAYBACK FIX)
 - ✅ loop plays from beginning first, then continues in loop - **FIXED** (SONG SWAP INITIALIZATION FIX)
+- ✅ session mode affected by arrangement loops - **FIXED** (SESSION MODE ISOLATION FIX)
 - no need to display "loop" if play started in song mode.
 - play doesn't start when I open a clip in arrangement mode.
 - make loop markers animation
