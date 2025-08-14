@@ -921,8 +921,12 @@ doNewPress:
 			// If nothing on this row yet, we'll add a brand new Instrument
 			if (!output) {
 
-				int32_t minY = -currentSong->arrangementYScroll - 1;
-				int32_t maxY = -currentSong->arrangementYScroll + currentSong->getNumOutputs();
+				// Replicate original bounds logic, adjusted for loop row at position 0
+				// Original: minY = -arrangementYScroll - 1, maxY = -arrangementYScroll + numOutputs
+				// With loop row: first output at display row 1, so adjust by +1
+				int32_t minY =
+				    1 - currentSong->arrangementYScroll - 1; // One before first output, accounting for loop row
+				int32_t maxY = 1 - currentSong->arrangementYScroll + currentSong->getNumOutputs(); // After last output
 
 				yPressedEffective = std::max((int32_t)yPressedEffective, minY);
 				yPressedEffective = std::min((int32_t)yPressedEffective, maxY);
@@ -935,9 +939,12 @@ doNewPress:
 				}
 
 				if (!instrumentAlreadyInSong) {
+					// Original condition: yPressedEffective == -arrangementYScroll - 1
+					// Adjusted for loop row: yPressedEffective == 1 - arrangementYScroll - 1
 					currentSong->addOutput(
 					    output,
-					    (yPressedEffective == -currentSong->arrangementYScroll - 1)); // This should always be triggered
+					    (yPressedEffective
+					     == 1 - currentSong->arrangementYScroll - 1)); // Insert at top if at min position
 				}
 
 				outputsOnScreen[yPressedEffective] = output;
@@ -1458,7 +1465,8 @@ void ArrangerView::interactWithClipInstance(Output* output, int32_t yDisplay, Cl
 }
 
 void ArrangerView::rememberInteractionWithClipInstance(int32_t yDisplay, ClipInstance* clipInstance) {
-	lastInteractedOutputIndex = yDisplay + currentSong->arrangementYScroll;
+	lastInteractedOutputIndex =
+	    yDisplay + currentSong->arrangementYScroll - 1; // yDisplay is 1-based, outputIndex is 0-based
 	lastInteractedPos = clipInstance->pos;
 	lastInteractedSection = clipInstance->clip ? clipInstance->clip->section : 255;
 	lastInteractedClipInstance = clipInstance;
@@ -2178,10 +2186,10 @@ bool ArrangerView::transitionToArrangementEditor() {
 	}
 
 	int32_t outputIndex = currentSong->getOutputIndex(output);
-	int32_t yDisplay = outputIndex - currentSong->arrangementYScroll;
-	if (yDisplay < 0) {
-		currentSong->arrangementYScroll += yDisplay;
-		yDisplay = 0;
+	int32_t yDisplay = outputIndex - currentSong->arrangementYScroll + 1; // +1 to account for loop row at position 0
+	if (yDisplay < 1) {                                                   // First output row is now 1, not 0
+		currentSong->arrangementYScroll += (yDisplay - 1);
+		yDisplay = 1;
 	}
 	else if (yDisplay >= kDisplayHeight) {
 		currentSong->arrangementYScroll += (yDisplay - kDisplayHeight + 1);
@@ -3004,7 +3012,7 @@ cant:
 		}
 
 		newOutput = (AudioOutput*)newClip->output;
-		currentSong->arrangementYScroll--;
+		// Note: No need to adjust arrangementYScroll anymore due to loop row at position 0
 	}
 
 	// Or if no old Clip, we just simply make a new Output here and don't worry about Clips
@@ -3365,7 +3373,8 @@ ActionResult ArrangerView::verticalScrollOneSquare(int32_t direction) {
 
 	// Or if dragging ClipInstance vertically
 	else if (draggingClipInstance) {
-		Output* newOutput = currentSong->getOutputFromIndex(yPressedEffective + currentSong->arrangementYScroll);
+		Output* newOutput = currentSong->getOutputFromIndex(yPressedEffective + currentSong->arrangementYScroll
+		                                                    - 1); // -1 to account for loop row at position 0
 
 		putDraggedClipInstanceInNewPosition(newOutput);
 	}
