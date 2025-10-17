@@ -501,7 +501,12 @@ void ArrangerView::clearArrangement() {
 		}
 	}
 
-	// Clear loop
+	// Clear loop - but only if no active overdub recordings
+	if (playbackHandler.hasActiveLoopOverdubRecordings()) {
+		display->displayPopup("RECORDING");
+		return;
+	}
+
 	currentSong->getArrangementLoop().clear();
 
 	uiNeedsRendering(this, 0xFFFFFFFF, 0);
@@ -1115,6 +1120,14 @@ ActionResult ArrangerView::handleLoopRowPadAction(int32_t x, int32_t y, int32_t 
 
 			int32_t actualEndPos = getPosFromSquare(endSquare + 1);
 
+			// Check if loop boundary modifications are allowed
+			if (playbackHandler.hasActiveLoopOverdubRecordings()) {
+				display->displayPopup("RECORDING");
+				currentUIMode = UI_MODE_NONE;
+				arrangerLoopCreationStartPos = -1;
+				return ActionResult::DEALT_WITH;
+			}
+
 			// Create the loop using the new arrangement loop system
 			currentSong->getArrangementLoop().create(startPos, actualEndPos);
 
@@ -1148,6 +1161,15 @@ ActionResult ArrangerView::handleLoopRowPadAction(int32_t x, int32_t y, int32_t 
 			// Create single-cell loop using the new arrangement loop system
 			int32_t startPos = arrangerLoopCreationStartPos;
 			int32_t endPos = getPosFromSquare(startSquare + 1);
+
+			// Check if loop boundary modifications are allowed
+			if (playbackHandler.hasActiveLoopOverdubRecordings()) {
+				display->displayPopup("RECORDING");
+				currentUIMode = UI_MODE_NONE;
+				arrangerLoopCreationStartPos = -1;
+				return ActionResult::DEALT_WITH;
+			}
+
 			currentSong->getArrangementLoop().create(startPos, endPos);
 
 			// Reset creation state
@@ -1307,6 +1329,14 @@ regularMutePadPress:
 			// If it's soloing, unsolo.
 			if (output->soloingInArrangementMode) {
 				goto doUnsolo;
+			}
+
+			// Check if this output is in a loop overdub session
+			if (playbackHandler.isOutputInLoopOverdubSession(output)) {
+				// For loop overdub sessions, set flag to terminate at next loop boundary
+				output->pendingLoopOverdubTermination = true;
+				// Don't change mute state yet - recording will be stopped at loop boundary
+				break;
 			}
 
 			// Unmuting

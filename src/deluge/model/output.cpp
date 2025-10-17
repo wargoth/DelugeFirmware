@@ -19,6 +19,7 @@
 #include "definitions_cxx.hpp"
 #include "memory/general_memory_allocator.h"
 #include "model/action/action_logger.h"
+#include "model/clip/audio_clip.h"
 #include "model/clip/clip.h"
 #include "model/clip/clip_instance.h"
 #include "model/clip/instrument_clip.h"
@@ -26,6 +27,7 @@
 #include "model/model_stack.h"
 #include "model/song/clip_iterators.h"
 #include "model/song/song.h"
+#include "playback/playback_handler.h"
 #include "processing/engines/audio_engine.h"
 #include "storage/storage_manager.h"
 
@@ -38,6 +40,8 @@ Output::Output(OutputType newType) : type(newType) {
 	inValidState = false;
 	next = nullptr;
 	recordingInArrangement = false;
+	pendingLoopOverdubTermination = false;
+	hasCompletedLoopCycle = false;
 	wasCreatedForAutoOverdub = false;
 	armedForRecording = false;
 
@@ -489,7 +493,28 @@ void Output::endAnyArrangementRecording(Song* song, int32_t actualEndPosInternal
 		char modelStackMemory[MODEL_STACK_MAX_SIZE];
 		ModelStackWithTimelineCounter* modelStack =
 		    setupModelStackWithTimelineCounter(modelStackMemory, song, activeClip);
-		activeClip->finishLinearRecording(modelStack);
+
+		// Check for incomplete overdub handling in loop overdub sessions
+		bool shouldDiscardIncompleteOverdub = false;
+		if (song && song->shouldLoopArrangement() && playbackHandler.recording == RecordingMode::ARRANGEMENT
+		    && type == OutputType::AUDIO && !hasCompletedLoopCycle) {
+
+			AudioClip* audioClip = static_cast<AudioClip*>(activeClip);
+			if (audioClip && !audioClip->isEmpty()) {
+				// Has existing audio but didn't complete a loop cycle - should discard
+				shouldDiscardIncompleteOverdub = true;
+			}
+		}
+
+		if (shouldDiscardIncompleteOverdub) {
+			activeClip->abortRecording();
+		}
+		else {
+			activeClip->finishLinearRecording(modelStack);
+		}
+
+		// Reset loop completion state
+		hasCompletedLoopCycle = false;
 
 		activeClip->expectNoFurtherTicks(song);
 		activeClip->activeIfNoSolo = false;

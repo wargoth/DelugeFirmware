@@ -45,6 +45,7 @@
 #include "memory/general_memory_allocator.h"
 #include "model/action/action.h"
 #include "model/action/action_logger.h"
+#include "model/arrangement_loop.h"
 #include "model/clip/audio_clip.h"
 #include "model/clip/clip.h"
 #include "model/clip/clip_instance.h"
@@ -56,6 +57,8 @@
 #include "model/instrument/kit.h"
 #include "model/mod_controllable/mod_controllable_audio.h"
 #include "model/model_stack.h"
+#include "model/output.h"
+#include "model/sample/sample.h"
 #include "model/sample/sample_holder.h"
 #include "model/settings/runtime_feature_settings.h"
 #include "model/song/song.h"
@@ -962,7 +965,10 @@ void PlaybackHandler::actionSwungTick() {
 				int32_t newPos = currentSong->checkForArrangementLoopAndGetNewPosition(currentPos);
 
 				if (newPos != currentPos) {
-					// Loop occurred - reset position
+					// Loop occurred - check if we need to create overdubs
+					handleArrangementLoopOverdubCreation();
+
+					// Reset position after handling overdubs
 					currentPlaybackMode->resetPlayPos(newPos, true);
 					swungTicksTilNextEvent = 1; // Schedule immediate processing
 					arrangerView.reassessWhetherDoingAutoScroll(newPos);
@@ -3357,4 +3363,164 @@ doCreateNextOverdub:
 		bool shouldExitRecordMode = (overdubNature != OverDubType::ContinuousLayering);
 		finishTempolessRecording(true, kMIDIKeyInputLatency, shouldExitRecordMode);
 	}
+}
+
+// Loop overdub creation for arrangement mode
+void PlaybackHandler::handleArrangementLoopOverdubCreation() {
+	// Only proceed if we're in arrangement mode with an active loop
+	if (currentPlaybackMode != &arrangement || !currentSong || !currentSong->shouldLoopArrangement()) {
+		return;
+	}
+
+	// Only proceed if we're recording in arrangement mode
+	if (recording != RecordingMode::ARRANGEMENT) {
+		return;
+	}
+
+	// Find all audio tracks that are currently recording and create overdubs
+	for (Output* output = currentSong->firstOutput; output; output = output->next) {
+		// Skip non-audio outputs
+		if (output->type != OutputType::AUDIO) {
+			continue;
+		}
+
+		// Skip outputs not recording in arrangement
+		if (!output->recordingInArrangement) {
+			continue;
+		}
+
+		// Get the active clip for this output
+		Clip* activeClip = output->getActiveClip();
+		if (!activeClip) {
+			continue;
+		}
+
+		// Only handle AudioClips
+		AudioClip* audioClip = static_cast<AudioClip*>(activeClip);
+		if (!audioClip) {
+			continue;
+		}
+
+		// Check if this clip is currently recording linearly
+		if (!audioClip->getCurrentlyRecordingLinearly()) {
+			continue;
+		}
+
+		// Check if this output has pending termination
+		if (output->pendingLoopOverdubTermination) {
+			// Terminate recording for this output
+			char modelStackMemory[MODEL_STACK_MAX_SIZE];
+			ModelStackWithTimelineCounter* modelStack =
+			    setupModelStackWithTimelineCounter(modelStackMemory, currentSong, audioClip);
+
+			// Check if we should discard incomplete overdub
+			if (!output->hasCompletedLoopCycle && !audioClip->isEmpty()) {
+				// Has existing audio but didn't complete a loop cycle - abort recording
+				audioClip->abortRecording();
+			}
+			else {
+				// Either completed a loop cycle or this is the first recording - finish normally
+				audioClip->finishLinearRecording(modelStack, nullptr, 0);
+			}
+
+			output->recordingInArrangement = false;
+			output->pendingLoopOverdubTermination = false;
+			output->hasCompletedLoopCycle = false;
+			continue;
+		}
+
+		// Check if the clip already has audio data (needed for in-place overdub)
+		if (audioClip->isEmpty()) {
+			// First recording pass - no overdub needed yet, just mark that we've completed a loop cycle
+			output->hasCompletedLoopCycle = true;
+			continue;
+		}
+
+		// We're completing a loop cycle - mark it
+		output->hasCompletedLoopCycle = true;
+
+		// Finish the current recording to complete the overdub layer
+		char modelStackMemory[MODEL_STACK_MAX_SIZE];
+		ModelStackWithTimelineCounter* modelStack =
+		    setupModelStackWithTimelineCounter(modelStackMemory, currentSong, audioClip);
+
+		audioClip->finishLinearRecording(modelStack, nullptr, 0);
+
+		// For arrangement loop overdubs, we need to set proper sample boundaries
+		// aligned to the loop, not the entire recording duration
+		if (audioClip->sampleHolder.audioFile) {
+			const ArrangementLoop& loop = currentSong->getArrangementLoop();
+			if (loop.exists() && loop.isActive()) {
+				// Calculate the loop duration in samples
+				int32_t loopLengthInTicks = loop.getEnd() - loop.getStart();
+				uint32_t loopLengthInSamples =
+				    (uint32_t)((uint64_t)loopLengthInTicks * kSampleRate / (currentSong->timePerTimerTickBig >> 32));
+
+				// Ensure the sample bounds match the loop duration
+				if (loopLengthInSamples > 0
+				    && loopLengthInSamples <= ((Sample*)audioClip->sampleHolder.audioFile)->lengthInSamples) {
+					audioClip->sampleHolder.endPos = loopLengthInSamples;
+				}
+			}
+		}
+
+		// Set up for next overdub without immediately starting recording
+		// This allows the current overdub to play back before starting the next layer
+		audioClip->setupOverdubInPlace(OverDubType::ContinuousLayering);
+
+		// Don't immediately start recording - wait for user to start next layer manually
+		// This prevents the "double speed" issue by allowing proper playback timing
+		output->recordingInArrangement = false;
+	}
+}
+
+// Check if an output is currently in a loop overdub recording session
+bool PlaybackHandler::isOutputInLoopOverdubSession(Output* output) {
+	// Must be in arrangement mode with recording active
+	if (currentPlaybackMode != &arrangement || recording != RecordingMode::ARRANGEMENT) {
+		return false;
+	}
+
+	// Must have an active arrangement loop
+	if (!currentSong || !currentSong->shouldLoopArrangement()) {
+		return false;
+	}
+
+	// Output must be recording in arrangement
+	if (!output || !output->recordingInArrangement) {
+		return false;
+	}
+
+	// Must be an audio output
+	if (output->type != OutputType::AUDIO) {
+		return false;
+	}
+
+	// Must have an active audio clip that's currently recording and not empty
+	Clip* activeClip = output->getActiveClip();
+	if (!activeClip) {
+		return false;
+	}
+
+	AudioClip* audioClip = static_cast<AudioClip*>(activeClip);
+	if (!audioClip || !audioClip->getCurrentlyRecordingLinearly() || audioClip->isEmpty()) {
+		return false;
+	}
+
+	return true;
+}
+
+// Check if any outputs have active loop overdub recordings
+bool PlaybackHandler::hasActiveLoopOverdubRecordings() {
+	if (!currentSong) {
+		return false;
+	}
+
+	for (Output* output = currentSong->firstOutput; output; output = output->next) {
+		if (isOutputInLoopOverdubSession(output)) {
+			return true;
+		}
+	}
+
+	return false;
 }
