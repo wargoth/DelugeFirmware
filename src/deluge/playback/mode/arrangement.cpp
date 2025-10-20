@@ -25,6 +25,8 @@
 #include "gui/views/view.h"
 #include "hid/display/display.h"
 #include "hid/led/pad_leds.h"
+#include "model/arrangement_loop.h"
+#include "model/clip/audio_clip.h"
 #include "model/clip/clip_instance.h"
 #include "model/clip/instrument_clip.h"
 #include "model/instrument/instrument.h"
@@ -401,6 +403,20 @@ void Arrangement::resetPlayPos(int32_t newPos, bool doingComplete, int32_t butto
 				Error error = output->possiblyBeginArrangementRecording(currentSong, newPos);
 				if (error != Error::NONE) {
 					display->displayError(error);
+				}
+				else if (output->type == OutputType::AUDIO && currentSong->shouldLoopArrangement()) {
+					// Recording started successfully - configure loop boundary for audio clips
+					const ArrangementLoop& loop = currentSong->getArrangementLoop();
+					if (loop.exists() && loop.isActive()) {
+						Clip* activeClip = output->getActiveClip();
+						if (activeClip && activeClip->type == ClipType::AUDIO) {
+							AudioClip* audioClip = static_cast<AudioClip*>(activeClip);
+							if (audioClip->recorder) {
+								int64_t loopEndPos = loop.getEnd();
+								audioClip->recorder->setLoopRecordingParams(loopEndPos);
+							}
+						}
+					}
 				}
 			}
 		}

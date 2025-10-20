@@ -3406,7 +3406,35 @@ void PlaybackHandler::handleArrangementLoopOverdubCreation() {
 			continue;
 		}
 
-		// Check if this output has pending termination
+		// When we hit the loop boundary, we need to finish the current recording
+		// This is the FIRST time hitting the loop end during this recording session
+		if (!output->hasCompletedLoopCycle) {
+			// Mark that we've completed one loop cycle
+			output->hasCompletedLoopCycle = true;
+
+			// CRITICAL FIX: Set the clip's loopLength to match the arrangement loop
+			// The clip was created with loopLength = kMaxSequenceLength
+			// We must set it to the actual loop length BEFORE finishLinearRecording()
+			// Otherwise originalLength = loopLength will copy the wrong value
+			const ArrangementLoop& loop = currentSong->getArrangementLoop();
+			if (loop.exists() && loop.isActive()) {
+				int32_t loopLengthInTicks = loop.getEnd() - loop.getStart();
+				audioClip->loopLength = loopLengthInTicks;
+			}
+
+			// Finish the recording to capture exactly one loop's worth of audio
+			char modelStackMemory[MODEL_STACK_MAX_SIZE];
+			ModelStackWithTimelineCounter* modelStack =
+			    setupModelStackWithTimelineCounter(modelStackMemory, currentSong, audioClip);
+
+			audioClip->finishLinearRecording(modelStack, nullptr, 0);
+
+			// Clear recording flag
+			output->recordingInArrangement = false;
+			continue;
+		}
+
+		// Check if this output has pending termination (subsequent loops)
 		if (output->pendingLoopOverdubTermination) {
 			// Terminate recording for this output
 			char modelStackMemory[MODEL_STACK_MAX_SIZE];
@@ -3419,6 +3447,13 @@ void PlaybackHandler::handleArrangementLoopOverdubCreation() {
 				audioClip->abortRecording();
 			}
 			else {
+				// CRITICAL FIX: Set the clip's loopLength before finishing
+				const ArrangementLoop& loop = currentSong->getArrangementLoop();
+				if (loop.exists() && loop.isActive()) {
+					int32_t loopLengthInTicks = loop.getEnd() - loop.getStart();
+					audioClip->loopLength = loopLengthInTicks;
+				}
+
 				// Either completed a loop cycle or this is the first recording - finish normally
 				audioClip->finishLinearRecording(modelStack, nullptr, 0);
 			}
@@ -3439,30 +3474,21 @@ void PlaybackHandler::handleArrangementLoopOverdubCreation() {
 		// We're completing a loop cycle - mark it
 		output->hasCompletedLoopCycle = true;
 
+		// CRITICAL FIX: Set the clip's loopLength to match the arrangement loop
+		// The clip was created with loopLength = kMaxSequenceLength
+		// We must set it to the actual loop length BEFORE finishLinearRecording()
+		const ArrangementLoop& loop = currentSong->getArrangementLoop();
+		if (loop.exists() && loop.isActive()) {
+			int32_t loopLengthInTicks = loop.getEnd() - loop.getStart();
+			audioClip->loopLength = loopLengthInTicks;
+		}
+
 		// Finish the current recording to complete the overdub layer
 		char modelStackMemory[MODEL_STACK_MAX_SIZE];
 		ModelStackWithTimelineCounter* modelStack =
 		    setupModelStackWithTimelineCounter(modelStackMemory, currentSong, audioClip);
 
 		audioClip->finishLinearRecording(modelStack, nullptr, 0);
-
-		// For arrangement loop overdubs, we need to set proper sample boundaries
-		// aligned to the loop, not the entire recording duration
-		if (audioClip->sampleHolder.audioFile) {
-			const ArrangementLoop& loop = currentSong->getArrangementLoop();
-			if (loop.exists() && loop.isActive()) {
-				// Calculate the loop duration in samples
-				int32_t loopLengthInTicks = loop.getEnd() - loop.getStart();
-				uint32_t loopLengthInSamples =
-				    (uint32_t)((uint64_t)loopLengthInTicks * kSampleRate / (currentSong->timePerTimerTickBig >> 32));
-
-				// Ensure the sample bounds match the loop duration
-				if (loopLengthInSamples > 0
-				    && loopLengthInSamples <= ((Sample*)audioClip->sampleHolder.audioFile)->lengthInSamples) {
-					audioClip->sampleHolder.endPos = loopLengthInSamples;
-				}
-			}
-		}
 
 		// Set up for next overdub without immediately starting recording
 		// This allows the current overdub to play back before starting the next layer

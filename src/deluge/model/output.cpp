@@ -19,6 +19,7 @@
 #include "definitions_cxx.hpp"
 #include "memory/general_memory_allocator.h"
 #include "model/action/action_logger.h"
+#include "model/arrangement_loop.h"
 #include "model/clip/audio_clip.h"
 #include "model/clip/clip.h"
 #include "model/clip/clip_instance.h"
@@ -470,6 +471,7 @@ Error Output::possiblyBeginArrangementRecording(Song* song, int32_t newPos) {
 	newClip->beginLinearRecording(modelStackWithTimelineCounter, 0);
 
 	recordingInArrangement = true;
+	hasCompletedLoopCycle = false; // Reset for new recording session
 
 	return Error::NONE;
 }
