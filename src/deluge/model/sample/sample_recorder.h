@@ -54,6 +54,7 @@ public:
 	            bool shouldRecordExtraMargins, AudioRecordingFolder newFolderID, int32_t buttonPressLatency,
 	            Output* outputRecordingFrom);
 	void setRecordingThreshold();
+	void setLoopRecordingParams(int64_t loopEnd);
 	void feedAudio(std::span<StereoSample> input, bool applyGain = false, uint8_t gainToApply = 5);
 	Error cardRoutine();
 	void endSyncedRecording(int32_t buttonLatencyForTempolessRecording);
@@ -116,6 +117,8 @@ public:
 	bool pointerHeldElsewhere = false;
 	bool capturedTooMuch = false;
 	bool thresholdRecording = false;
+	bool shouldStopAtLoopEnd = false;
+	int64_t loopEndPosition = 0;
 
 	// Most of these are not captured in the case of BALANCED input for AudioClips
 	bool recordingClippedRecently;

@@ -192,6 +192,8 @@ public:
 	Error possiblyBeginArrangementRecording(Song* song, int32_t newPos);
 	void endArrangementPlayback(Song* song, int32_t actualEndPos, uint32_t timeRemainder);
 	bool recordingInArrangement;
+	bool pendingLoopOverdubTermination; // Flag to terminate recording at next loop boundary
+	bool hasCompletedLoopCycle;         // Track if current overdub has completed at least one loop cycle
 
 	virtual ModelStackWithAutoParam* getModelStackWithParam(ModelStackWithTimelineCounter* modelStack, Clip* clip,
 	                                                        int32_t paramID, deluge::modulation::params::Kind paramKind,

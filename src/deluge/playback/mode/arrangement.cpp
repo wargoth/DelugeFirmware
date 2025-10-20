@@ -25,6 +25,8 @@
 #include "gui/views/view.h"
 #include "hid/display/display.h"
 #include "hid/led/pad_leds.h"
+#include "model/arrangement_loop.h"
+#include "model/clip/audio_clip.h"
 #include "model/clip/clip_instance.h"
 #include "model/clip/instrument_clip.h"
 #include "model/instrument/instrument.h"
@@ -318,12 +320,28 @@ justDoArp:
 		sessionView.requestRendering(getRootUI(), 0, 0xFFFFFFFF);
 	}
 
+	// LOOP TIMING COORDINATION: Must happen BEFORE playback stop check
+	// Calculate exact timing for loop boundaries when no further events are scheduled
+	if (currentSong && currentSong->shouldLoopArrangement()) {
+		int32_t ticksTilLoopEnd = currentSong->getArrangementLoop().getEnd() - lastProcessedPos;
+
+		if (ticksTilLoopEnd > 0) {
+			playbackHandler.swungTicksTilNextEvent = std::min(playbackHandler.swungTicksTilNextEvent, ticksTilLoopEnd);
+		}
+		else if (ticksTilLoopEnd == 0) {
+			// We're exactly at the loop end - make sure we come back next tick
+			playbackHandler.swungTicksTilNextEvent = std::min(playbackHandler.swungTicksTilNextEvent, 1_i32);
+		}
+	}
+
 	// If nothing further in the arrangement, we usually just stop playing
+	// BUT NOT if there's an active loop - then the loop logic will handle it
 	if (playbackHandler.swungTicksTilNextEvent == 2147483647
 	    && playbackHandler.isInternalClockActive()
 	    // Only do this if not recording MIDI - but override that and do do it if we're "resampling"
 	    && (playbackHandler.recording == RecordingMode::OFF
-	        || audioRecorder.recordingSource >= AUDIO_INPUT_CHANNEL_FIRST_INTERNAL_OPTION)) {
+	        || audioRecorder.recordingSource >= AUDIO_INPUT_CHANNEL_FIRST_INTERNAL_OPTION)
+	    && !(currentSong && currentSong->shouldLoopArrangement())) { // Don't stop if we should loop back
 
 		if (playbackHandler.stopOutputRecordingAtLoopEnd && audioRecorder.isCurrentlyResampling()) {
 			audioRecorder.endRecordingSoon();
@@ -385,6 +403,20 @@ void Arrangement::resetPlayPos(int32_t newPos, bool doingComplete, int32_t butto
 				Error error = output->possiblyBeginArrangementRecording(currentSong, newPos);
 				if (error != Error::NONE) {
 					display->displayError(error);
+				}
+				else if (output->type == OutputType::AUDIO && currentSong->shouldLoopArrangement()) {
+					// Recording started successfully - configure loop boundary for audio clips
+					const ArrangementLoop& loop = currentSong->getArrangementLoop();
+					if (loop.exists() && loop.isActive()) {
+						Clip* activeClip = output->getActiveClip();
+						if (activeClip && activeClip->type == ClipType::AUDIO) {
+							AudioClip* audioClip = static_cast<AudioClip*>(activeClip);
+							if (audioClip->recorder) {
+								int64_t loopEndPos = loop.getEnd();
+								audioClip->recorder->setLoopRecordingParams(loopEndPos);
+							}
+						}
+					}
 				}
 			}
 		}

@@ -33,6 +33,7 @@
 #include "model/voice/voice_sample.h"
 #include "modulation/params/param_set.h"
 #include "playback/mode/arrangement.h"
+#include "playback/mode/playback_mode.h"
 #include "playback/mode/session.h"
 #include "playback/playback_handler.h"
 #include "processing/audio_output.h"

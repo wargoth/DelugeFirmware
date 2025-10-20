@@ -68,6 +68,7 @@
 #include "modulation/params/param_set.h"
 #include "playback/mode/arrangement.h"
 #include "playback/mode/session.h"
+#include "playback/playback_handler.h"
 #include "processing/audio_output.h"
 #include "processing/engines/audio_engine.h"
 #include "processing/sound/sound_drum.h"
@@ -78,6 +79,8 @@
 #include "util/d_string.h"
 #include "util/functions.h"
 #include "util/try.h"
+#include <algorithm>
+#include <cmath>
 #include <cstdint>
 #include <new>
 
@@ -498,6 +501,14 @@ void ArrangerView::clearArrangement() {
 		}
 	}
 
+	// Clear loop - but only if no active overdub recordings
+	if (playbackHandler.hasActiveLoopOverdubRecordings()) {
+		display->displayPopup("RECORDING");
+		return;
+	}
+
+	currentSong->getArrangementLoop().clear();
+
 	uiNeedsRendering(this, 0xFFFFFFFF, 0);
 }
 
@@ -562,12 +573,12 @@ void ArrangerView::repopulateOutputsOnScreen(bool doRender) {
 	memset(outputsOnScreen, 0, sizeof(outputsOnScreen));
 
 	Output* output = currentSong->firstOutput;
-	int32_t row = 0 - currentSong->arrangementYScroll;
+	int32_t row = 1 - currentSong->arrangementYScroll; // Start at row 1 to account for loop row at 0
 	while (output) {
 		if (row >= kDisplayHeight) {
 			break;
 		}
-		if (row >= 0) {
+		if (row >= 1) { // Start at row 1, not 0 (which is reserved for loop row)
 			outputsOnScreen[row] = output;
 		}
 		row++;
@@ -604,14 +615,31 @@ bool ArrangerView::renderSidebar(uint32_t whichRows, RGB image[][kDisplayWidth +
 void ArrangerView::drawMuteSquare(int32_t yDisplay, RGB thisImage[]) {
 	RGB& thisColour = thisImage[kDisplayWidth];
 
+	// Handle loop row (y = 0)
+	if (yDisplay == 0) {
+		if (currentSong && currentSong->shouldLoopArrangement()) {
+			thisColour = colours::green; // Active loop
+		}
+		else {
+			thisColour = colours::black; // No loop or inactive
+		}
+		return;
+	}
+
+	// BOUNDS CHECK: Use bounds-safe array access
+	Output* output = nullptr;
+	if (yDisplay >= 1 && yDisplay < kDisplayHeight) {
+		output = outputsOnScreen[yDisplay];
+	}
+
 	// If no Instrument, black
-	if (!outputsOnScreen[yDisplay]) {
+	if (!output) {
 		thisColour = colours::black;
 	}
 
-	else if (currentUIMode == UI_MODE_VIEWING_RECORD_ARMING && outputsOnScreen[yDisplay]->armedForRecording) {
+	else if (currentUIMode == UI_MODE_VIEWING_RECORD_ARMING && output->armedForRecording) {
 		if (blinkOn) {
-			if (outputsOnScreen[yDisplay]->wantsToBeginArrangementRecording()) {
+			if (output->wantsToBeginArrangementRecording()) {
 				thisColour = {255, 1, 0};
 			}
 			else {
@@ -624,7 +652,7 @@ void ArrangerView::drawMuteSquare(int32_t yDisplay, RGB thisImage[]) {
 	}
 
 	// Soloing - blue
-	else if (outputsOnScreen[yDisplay]->soloingInArrangementMode) {
+	else if (output->soloingInArrangementMode) {
 		thisColour = menu_item::soloColourMenu.getRGB();
 	}
 
@@ -632,7 +660,7 @@ void ArrangerView::drawMuteSquare(int32_t yDisplay, RGB thisImage[]) {
 	else {
 
 		// Muted - yellow
-		if (outputsOnScreen[yDisplay]->mutedInArrangementMode) {
+		if (output->mutedInArrangementMode) {
 			thisColour = menu_item::mutedColourMenu.getRGB();
 		}
 
@@ -650,7 +678,18 @@ void ArrangerView::drawMuteSquare(int32_t yDisplay, RGB thisImage[]) {
 void ArrangerView::drawAuditionSquare(int32_t yDisplay, RGB thisImage[]) {
 	RGB& thisColour = thisImage[kDisplayWidth + 1];
 
+	// Handle loop row (y = 0) - always yellow, non-functional
+	if (yDisplay == 0) {
+		thisColour = colours::yellow;
+		return;
+	}
+
 	if (view.midiLearnFlashOn) {
+		// BOUNDS CHECK: Ensure array access is within bounds
+		if (yDisplay < 1 || yDisplay >= kDisplayHeight) {
+			goto drawNormally;
+		}
+
 		Output* output = outputsOnScreen[yDisplay];
 
 		if (!output || output->type == OutputType::AUDIO) {
@@ -887,8 +926,12 @@ doNewPress:
 			// If nothing on this row yet, we'll add a brand new Instrument
 			if (!output) {
 
-				int32_t minY = -currentSong->arrangementYScroll - 1;
-				int32_t maxY = -currentSong->arrangementYScroll + currentSong->getNumOutputs();
+				// Replicate original bounds logic, adjusted for loop row at position 0
+				// Original: minY = -arrangementYScroll - 1, maxY = -arrangementYScroll + numOutputs
+				// With loop row: first output at display row 1, so adjust by +1
+				int32_t minY =
+				    1 - currentSong->arrangementYScroll - 1; // One before first output, accounting for loop row
+				int32_t maxY = 1 - currentSong->arrangementYScroll + currentSong->getNumOutputs(); // After last output
 
 				yPressedEffective = std::max((int32_t)yPressedEffective, minY);
 				yPressedEffective = std::min((int32_t)yPressedEffective, maxY);
@@ -901,9 +944,12 @@ doNewPress:
 				}
 
 				if (!instrumentAlreadyInSong) {
+					// Original condition: yPressedEffective == -arrangementYScroll - 1
+					// Adjusted for loop row: yPressedEffective == 1 - arrangementYScroll - 1
 					currentSong->addOutput(
 					    output,
-					    (yPressedEffective == -currentSong->arrangementYScroll - 1)); // This should always be triggered
+					    (yPressedEffective
+					     == 1 - currentSong->arrangementYScroll - 1)); // Insert at top if at min position
 				}
 
 				outputsOnScreen[yPressedEffective] = output;
@@ -982,19 +1028,32 @@ ActionResult ArrangerView::padAction(int32_t x, int32_t y, int32_t velocity) {
 }
 
 ActionResult ArrangerView::handleEditPadAction(int32_t x, int32_t y, int32_t velocity) {
+	// Handle loop row (y = 0)
+	if (y == 0) {
+		return handleLoopRowPadAction(x, y, velocity);
+	}
+
+	// BOUNDS CHECK: Ensure array access is within bounds
+	if (y < 1 || y >= kDisplayHeight) {
+		return ActionResult::DEALT_WITH;
+	}
+
 	Output* output = outputsOnScreen[y];
 
 	if (currentUIMode == UI_MODE_HOLDING_ARRANGEMENT_ROW_AUDITION) {
 		if (velocity) {
 			// NAME shortcut
 			if (x == 11 && y == 5) {
-				Output* output = outputsOnScreen[yPressedEffective];
-				if (output && output->type != OutputType::CV) {
-					endAudition(output);
-					currentUIMode = UI_MODE_NONE;
-					renameOutputUI.output = output;
-					openUI(&renameOutputUI);
-					uiNeedsRendering(this, 0, 0xFFFFFFFF); // Stop audition pad being illuminated
+				// BOUNDS CHECK for yPressedEffective access
+				if (yPressedEffective >= 1 && yPressedEffective < kDisplayHeight) {
+					Output* output = outputsOnScreen[yPressedEffective];
+					if (output && output->type != OutputType::CV) {
+						endAudition(output);
+						currentUIMode = UI_MODE_NONE;
+						renameOutputUI.output = output;
+						openUI(&renameOutputUI);
+						uiNeedsRendering(this, 0, 0xFFFFFFFF); // Stop audition pad being illuminated
+					}
 				}
 			}
 		}
@@ -1007,7 +1066,166 @@ ActionResult ArrangerView::handleEditPadAction(int32_t x, int32_t y, int32_t vel
 	return ActionResult::DEALT_WITH;
 }
 
+ActionResult ArrangerView::handleLoopRowPadAction(int32_t x, int32_t y, int32_t velocity) {
+	// Function Parameter Validation - check for null critical objects
+	if (!currentSong || !display) {
+		return ActionResult::DEALT_WITH;
+	}
+
+	// Bounds checking for coordinate system
+	if (x < 0 || x >= kDisplayWidth || y != 0) {
+		return ActionResult::DEALT_WITH;
+	}
+
+	int32_t pressPosition = getPosFromSquare(x);
+	// Additional bounds checking for position
+	if (pressPosition < 0) {
+		return ActionResult::DEALT_WITH;
+	}
+
+	if (velocity) {
+		// Pad press - start loop creation or extend existing creation
+		if (currentUIMode != UI_MODE_LOOP_CREATION_HOLDING_START) {
+			// First press - start holding for loop creation
+			arrangerLoopCreationStartPos = pressPosition;
+			currentUIMode = UI_MODE_LOOP_CREATION_HOLDING_START;
+		}
+		else {
+			// Second press while holding start - set end position and create loop
+			int32_t startPos = arrangerLoopCreationStartPos;
+			int32_t endPos = pressPosition;
+
+			// Bounds checking for coordinate values
+			if (startPos < 0 || endPos < 0) {
+				currentUIMode = UI_MODE_NONE;
+				arrangerLoopCreationStartPos = -1;
+				return ActionResult::DEALT_WITH;
+			}
+
+			// Ensure start is before end
+			if (startPos > endPos) {
+				int32_t temp = startPos;
+				startPos = endPos;
+				endPos = temp;
+			}
+
+			// Get the square for the end position and use getPosFromSquare(square + 1) to get actual end
+			int32_t endSquare = getSquareFromPos(endPos);
+			// Additional bounds checking for square conversion
+			if (endSquare < 0 || endSquare >= 2147483647) {
+				currentUIMode = UI_MODE_NONE;
+				arrangerLoopCreationStartPos = -1;
+				return ActionResult::DEALT_WITH;
+			}
+
+			int32_t actualEndPos = getPosFromSquare(endSquare + 1);
+
+			// Check if loop boundary modifications are allowed
+			if (playbackHandler.hasActiveLoopOverdubRecordings()) {
+				display->displayPopup("RECORDING");
+				currentUIMode = UI_MODE_NONE;
+				arrangerLoopCreationStartPos = -1;
+				return ActionResult::DEALT_WITH;
+			}
+
+			// Create the loop using the new arrangement loop system
+			currentSong->getArrangementLoop().create(startPos, actualEndPos);
+
+			// Reset creation state
+			currentUIMode = UI_MODE_NONE;
+			arrangerLoopCreationStartPos = -1;
+
+			uiNeedsRendering(this, 1, 1); // Redraw loop row in both main grid and sidebar
+		}
+	}
+	else {
+		// Pad release
+		if (currentUIMode == UI_MODE_LOOP_CREATION_HOLDING_START) {
+			// Released without setting end position - create single-cell loop
+			// Bounds checking for coordinate conversion functions
+			if (arrangerLoopCreationStartPos < 0) {
+				currentUIMode = UI_MODE_NONE;
+				arrangerLoopCreationStartPos = -1;
+				return ActionResult::DEALT_WITH;
+			}
+
+			// Get the x position from the stored start position
+			int32_t startSquare = getSquareFromPos(arrangerLoopCreationStartPos);
+			// Additional bounds checking
+			if (startSquare < 0 || startSquare >= 2147483647) {
+				currentUIMode = UI_MODE_NONE;
+				arrangerLoopCreationStartPos = -1;
+				return ActionResult::DEALT_WITH;
+			}
+
+			// Create single-cell loop using the new arrangement loop system
+			int32_t startPos = arrangerLoopCreationStartPos;
+			int32_t endPos = getPosFromSquare(startSquare + 1);
+
+			// Check if loop boundary modifications are allowed
+			if (playbackHandler.hasActiveLoopOverdubRecordings()) {
+				display->displayPopup("RECORDING");
+				currentUIMode = UI_MODE_NONE;
+				arrangerLoopCreationStartPos = -1;
+				return ActionResult::DEALT_WITH;
+			}
+
+			currentSong->getArrangementLoop().create(startPos, endPos);
+
+			// Reset creation state
+			currentUIMode = UI_MODE_NONE;
+			arrangerLoopCreationStartPos = -1;
+
+			uiNeedsRendering(this, 1, 1); // Redraw loop row in both main grid and sidebar
+		}
+	}
+
+	return ActionResult::DEALT_WITH;
+}
+
 ActionResult ArrangerView::handleStatusPadAction(int32_t y, int32_t velocity, UI* ui) {
+	// Function Parameter Validation - check for null critical objects
+	if (!currentSong || !display || !ui) {
+		return ActionResult::DEALT_WITH;
+	}
+
+	// Handle loop row status pad (y = 0)
+	if (y == 0) {
+		if (velocity && currentSong->getArrangementLoop().exists()) {
+			// Toggle loop activation
+			bool wasActive = currentSong->getArrangementLoop().isActive();
+			currentSong->getArrangementLoop().setActive(!wasActive);
+
+			// Update playhead state appropriately
+			if (!currentSong->getArrangementLoop().isActive()) {
+				// Loop deactivated - reset playhead state
+				currentSong->getArrangementLoop().resetPlayheadState();
+			}
+			else if (playbackHandler.isEitherClockActive()) {
+				// Loop activated during playback - initialize playhead state based on current position
+				int32_t currentPos = arrangement.getLivePos();
+				currentSong->getArrangementLoop().initializePlayheadState(currentPos);
+			}
+
+			// Display current status after toggle - Display Pointer Safety
+			if (display) {
+				if (currentSong->getArrangementLoop().isActive()) {
+					display->displayPopup("ON");
+				}
+				else {
+					display->displayPopup("OFF");
+				}
+			}
+			uiNeedsRendering(ui, 0, 1); // Redraw loop row
+		}
+		return ActionResult::DEALT_WITH;
+	}
+
+	// BOUNDS CHECK: Ensure array access is within bounds
+	if (y < 1 || y >= kDisplayHeight) {
+		return ActionResult::DEALT_WITH;
+	}
+
 	Output* output = outputsOnScreen[y];
 
 	if (!output) {
@@ -1113,6 +1331,14 @@ regularMutePadPress:
 				goto doUnsolo;
 			}
 
+			// Check if this output is in a loop overdub session
+			if (playbackHandler.isOutputInLoopOverdubSession(output)) {
+				// For loop overdub sessions, set flag to terminate at next loop boundary
+				output->pendingLoopOverdubTermination = true;
+				// Don't change mute state yet - recording will be stopped at loop boundary
+				break;
+			}
+
 			// Unmuting
 			if (output->mutedInArrangementMode) {
 				output->mutedInArrangementMode = false;
@@ -1140,6 +1366,35 @@ regularMutePadPress:
 }
 
 ActionResult ArrangerView::handleAuditionPadAction(int32_t y, int32_t velocity, UI* ui) {
+	// Function Parameter Validation - check for null critical objects
+	if (!currentSong || !display || !ui) {
+		return ActionResult::DEALT_WITH;
+	}
+
+	// Handle loop row audition pad (y = 0) - display loop status
+	if (y == 0) {
+		if (velocity) {
+			// Display "LOOP" text followed by ON/OFF status - Display Pointer Safety
+			if (display) {
+				if (currentSong->getArrangementLoop().isActive()) {
+					display->displayPopup("ON");
+				}
+				else if (currentSong->getArrangementLoop().exists()) {
+					display->displayPopup("OFF");
+				}
+				else {
+					display->displayPopup("LOOP");
+				}
+			}
+		}
+		return ActionResult::DEALT_WITH;
+	}
+
+	// BOUNDS CHECK: Ensure array access is within bounds
+	if (y < 1 || y >= kDisplayHeight) {
+		return ActionResult::DEALT_WITH;
+	}
+
 	Output* output = outputsOnScreen[y];
 
 	switch (currentUIMode) {
@@ -1240,14 +1495,29 @@ void ArrangerView::interactWithClipInstance(Output* output, int32_t yDisplay, Cl
 }
 
 void ArrangerView::rememberInteractionWithClipInstance(int32_t yDisplay, ClipInstance* clipInstance) {
-	lastInteractedOutputIndex = yDisplay + currentSong->arrangementYScroll;
+	lastInteractedOutputIndex =
+	    yDisplay + currentSong->arrangementYScroll - 1; // yDisplay is 1-based, outputIndex is 0-based
 	lastInteractedPos = clipInstance->pos;
 	lastInteractedSection = clipInstance->clip ? clipInstance->clip->section : 255;
 	lastInteractedClipInstance = clipInstance;
 }
 
 void ArrangerView::editPadAction(int32_t x, int32_t y, bool on) {
+	// Handle loop row (y = 0) - no editing allowed
+	if (y == 0) {
+		return;
+	}
+
+	// BOUNDS CHECK: Ensure array access is within bounds
+	if (y < 1 || y >= kDisplayHeight) {
+		return;
+	}
+
 	Output* output = outputsOnScreen[y];
+	if (!output) {
+		return;
+	}
+
 	uint32_t xScroll = currentSong->xScroll[NAVIGATION_ARRANGEMENT];
 
 	// Shift button pressed - clone ClipInstance to white / unique
@@ -1946,10 +2216,10 @@ bool ArrangerView::transitionToArrangementEditor() {
 	}
 
 	int32_t outputIndex = currentSong->getOutputIndex(output);
-	int32_t yDisplay = outputIndex - currentSong->arrangementYScroll;
-	if (yDisplay < 0) {
-		currentSong->arrangementYScroll += yDisplay;
-		yDisplay = 0;
+	int32_t yDisplay = outputIndex - currentSong->arrangementYScroll + 1; // +1 to account for loop row at position 0
+	if (yDisplay < 1) {                                                   // First output row is now 1, not 0
+		currentSong->arrangementYScroll += (yDisplay - 1);
+		yDisplay = 1;
 	}
 	else if (yDisplay >= kDisplayHeight) {
 		currentSong->arrangementYScroll += (yDisplay - kDisplayHeight + 1);
@@ -2185,6 +2455,104 @@ uint32_t ArrangerView::doActualRender(int32_t xScroll, uint32_t xZoom, uint32_t 
 	return whichRowsCouldntBeRendered;
 }
 
+void ArrangerView::renderLoopRow(int32_t xScroll, uint32_t xZoom, RGB* imageThisRow, uint8_t thisOccupancyMask[],
+                                 int32_t renderWidth) {
+	// Clear the row first
+	for (int32_t x = 0; x < renderWidth; x++) {
+		imageThisRow[x] = colours::black;
+		if (thisOccupancyMask) {
+			thisOccupancyMask[x] = 0;
+		}
+	}
+
+	// Show start position during loop creation (when holding start)
+	if (currentUIMode == UI_MODE_LOOP_CREATION_HOLDING_START && !currentSong->getArrangementLoop().exists()) {
+		int32_t startPressSquare = getSquareFromPos(arrangerLoopCreationStartPos, nullptr, xScroll, xZoom);
+		// Only render the white square if it's within the visible area
+		if (startPressSquare >= 0 && startPressSquare < renderWidth) {
+			imageThisRow[startPressSquare] = colours::white;
+			if (thisOccupancyMask) {
+				thisOccupancyMask[startPressSquare] = 64;
+			}
+		}
+	}
+
+	// Render the loop handle with rainbow colors if it exists
+	if (currentSong->getArrangementLoop().exists()) {
+		int32_t loopStartSquare =
+		    getSquareFromPos(currentSong->getArrangementLoop().getStart(), nullptr, xScroll, xZoom);
+		// For rendering, we need the square that contains the end position, not the square after it
+		// Since loopEnd is the actual end position, we subtract 1 to get the last square to render
+		int32_t loopEndSquare =
+		    getSquareFromPos(currentSong->getArrangementLoop().getEnd() - 1, nullptr, xScroll, xZoom);
+
+		// Check if the loop is completely outside the visible area
+		if (loopEndSquare < 0 || loopStartSquare >= renderWidth) {
+			// Loop is completely outside the visible area, don't render anything
+			return;
+		}
+
+		// Clamp to render width bounds, but only if part of the loop is visible
+		if (loopStartSquare < 0)
+			loopStartSquare = 0;
+		if (loopEndSquare >= renderWidth)
+			loopEndSquare = renderWidth - 1;
+
+		// Additional safety check - ensure we have valid range
+		if (loopStartSquare > loopEndSquare) {
+			// This shouldn't happen with proper coordinate conversion, but safety first
+			return;
+		}
+
+		// Create rainbow colors for the loop handle
+		for (int32_t x = loopStartSquare; x <= loopEndSquare; x++) {
+			// Create a rainbow effect based on position within the loop
+			int32_t range = loopEndSquare - loopStartSquare;
+			float position = (range > 0) ? (float)(x - loopStartSquare) / (float)range : 0.0f;
+			RGB rainbowColor = getRainbowColor(position);
+			imageThisRow[x] = rainbowColor;
+			if (thisOccupancyMask) {
+				thisOccupancyMask[x] = 64;
+			}
+		}
+	}
+}
+
+RGB ArrangerView::getRainbowColor(float position) {
+	// Clamp position to [0.0, 1.0]
+	position = (position < 0.0f) ? 0.0f : (position > 1.0f) ? 1.0f : position;
+
+	// Map position to hue (0-360 degrees) and convert to sector (0-5)
+	float hue = position * 6.0f; // Direct sector calculation
+	int32_t sector = static_cast<int32_t>(hue);
+	float fractional = hue - sector;
+
+	// Create pastel colors by mixing with white and reducing saturation
+	constexpr uint8_t baseWhite = 60;       // Reduced white component for more vibrant colors
+	constexpr uint8_t colorIntensity = 195; // Increased color intensity for more saturation
+
+	uint8_t primary = baseWhite + colorIntensity;
+	uint8_t secondary = baseWhite + static_cast<uint8_t>(colorIntensity * fractional);
+	uint8_t tertiary = baseWhite + static_cast<uint8_t>(colorIntensity * (1.0f - fractional));
+	uint8_t minimal = baseWhite;
+
+	// Select RGB values based on sector for pastel rainbow
+	switch (sector % 6) {
+	case 0:
+		return RGB{primary, secondary, minimal}; // Pastel Red to Yellow
+	case 1:
+		return RGB{tertiary, primary, minimal}; // Pastel Yellow to Green
+	case 2:
+		return RGB{minimal, primary, secondary}; // Pastel Green to Cyan
+	case 3:
+		return RGB{minimal, tertiary, primary}; // Pastel Cyan to Blue
+	case 4:
+		return RGB{secondary, minimal, primary}; // Pastel Blue to Magenta
+	default:
+		return RGB{primary, minimal, tertiary}; // Pastel Magenta to Red
+	}
+}
+
 bool ArrangerView::renderMainPads(uint32_t whichRows, RGB image[][kDisplayWidth + kSideBarWidth],
                                   uint8_t occupancyMask[][kDisplayWidth + kSideBarWidth], bool drawUndefinedArea) {
 	if (!image) {
@@ -2210,6 +2578,22 @@ bool ArrangerView::renderMainPads(uint32_t whichRows, RGB image[][kDisplayWidth 
 // occupancyMask can be NULL
 bool ArrangerView::renderRow(ModelStack* modelStack, int32_t yDisplay, int32_t xScroll, uint32_t xZoom,
                              RGB* imageThisRow, uint8_t thisOccupancyMask[], int32_t renderWidth) {
+
+	// Handle loop row (y = 0)
+	if (yDisplay == 0) {
+		renderLoopRow(xScroll, xZoom, imageThisRow, thisOccupancyMask, renderWidth);
+		return true;
+	}
+
+	// BOUNDS CHECK: Ensure array access is within bounds
+	if (yDisplay < 0 || yDisplay >= kDisplayHeight) {
+		// Fill with black if out of bounds
+		const RGB* imageEnd = imageThisRow + renderWidth;
+		for (; imageThisRow < imageEnd; imageThisRow++) {
+			*(imageThisRow) = colours::black;
+		}
+		return true;
+	}
 
 	Output* output = outputsOnScreen[yDisplay];
 
@@ -2658,7 +3042,7 @@ cant:
 		}
 
 		newOutput = (AudioOutput*)newClip->output;
-		currentSong->arrangementYScroll--;
+		// Note: No need to adjust arrangementYScroll anymore due to loop row at position 0
 	}
 
 	// Or if no old Clip, we just simply make a new Output here and don't worry about Clips
@@ -3019,7 +3403,8 @@ ActionResult ArrangerView::verticalScrollOneSquare(int32_t direction) {
 
 	// Or if dragging ClipInstance vertically
 	else if (draggingClipInstance) {
-		Output* newOutput = currentSong->getOutputFromIndex(yPressedEffective + currentSong->arrangementYScroll);
+		Output* newOutput = currentSong->getOutputFromIndex(yPressedEffective + currentSong->arrangementYScroll
+		                                                    - 1); // -1 to account for loop row at position 0
 
 		putDraggedClipInstanceInNewPosition(newOutput);
 	}

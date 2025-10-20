@@ -45,8 +45,10 @@
 #include "memory/general_memory_allocator.h"
 #include "model/action/action.h"
 #include "model/action/action_logger.h"
+#include "model/arrangement_loop.h"
 #include "model/clip/audio_clip.h"
 #include "model/clip/clip.h"
+#include "model/clip/clip_instance.h"
 #include "model/clip/instrument_clip.h"
 #include "model/clip/instrument_clip_minder.h"
 #include "model/consequence/consequence.h"
@@ -55,6 +57,8 @@
 #include "model/instrument/kit.h"
 #include "model/mod_controllable/mod_controllable_audio.h"
 #include "model/model_stack.h"
+#include "model/output.h"
+#include "model/sample/sample.h"
 #include "model/sample/sample_holder.h"
 #include "model/settings/runtime_feature_settings.h"
 #include "model/song/song.h"
@@ -189,8 +193,19 @@ void PlaybackHandler::playButtonPressed(int32_t buttonPressLatency) {
 
 	// If not currently playing
 	if (!playbackState) {
+		// Check if we're starting playback with an active loop (simplified)
+		bool startingWithActiveLoop = false;
+		if (currentSong && currentSong->shouldLoopArrangement()) {
+			startingWithActiveLoop = true;
+		}
+
 		setupPlaybackUsingInternalClock(buttonPressLatency);
 		D_PRINTLN("Play");
+
+		// Display "LOOP" feedback if starting with an active loop
+		if (startingWithActiveLoop && display) {
+			display->displayPopup("LOOP");
+		}
 	}
 
 	// Or if currently playing...
@@ -334,11 +349,13 @@ void PlaybackHandler::setupPlaybackUsingInternalClock(int32_t buttonPressLatency
 	bool startFromCurrentScreen = false;
 	bool isArrangementPadPressed = false;
 
+	// Determine if we're in arranger view
+	bool isArrangerView = (rootUI == &arrangerView)
+	                      || (rootUI == &performanceView && currentSong->lastClipInstanceEnteredStartPos != -1)
+	                      || (rootUI == &automationView && automationView.onArrangerView);
+
 	// if we're restarting playback from beginning, do that
 	if (!restartingPlaybackAtBeginning) {
-		bool isArrangerView = (rootUI == &arrangerView)
-		                      || (rootUI == &performanceView && currentSong->lastClipInstanceEnteredStartPos != -1)
-		                      || (rootUI == &automationView && automationView.onArrangerView);
 
 		// second priority - if we're holding pad in arranger, play from that pad
 		isArrangementPadPressed = isArrangerView && isUIModeActive(UI_MODE_HOLDING_ARRANGEMENT_ROW);
@@ -393,6 +410,22 @@ void PlaybackHandler::setupPlaybackUsingInternalClock(int32_t buttonPressLatency
 	// second priority - if you're holding an arranger pad then restart from there
 	else if (isArrangementPadPressed) {
 		newPos = arrangerView.lastInteractedArrangementPos;
+	}
+	// Check if there's an active loop and starting playback - ONLY in arrangement mode
+	// Session mode should never be affected by arrangement loops
+	else if (currentPlaybackMode == &arrangement && currentSong && currentSong->shouldLoopArrangement()
+	         && !restartingPlayback) {
+		// Get current position (scroll position is the default starting position)
+		int32_t currentPos = currentSong->xScroll[navSys];
+		const ArrangementLoop& loop = currentSong->getArrangementLoop();
+		// Only jump to loop start if current position is before the loop end
+		if (currentPos < loop.getEnd()) {
+			newPos = loop.getStart();
+		}
+		else {
+			// Stay at current position - we're past the loop already
+			newPos = currentPos;
+		}
 	}
 	// next is <> + play / cross screen + play, or recording into arranger - start from the current left edge scroll
 	// position this is good even for cross screen playback since the last cursor position isn't visible
@@ -926,6 +959,22 @@ void PlaybackHandler::actionSwungTick() {
 
 		if (isEitherClockActive()) { // Occasionally, doTickForward() will stop playback
 
+			// Check for arrangement loops - simplified approach
+			if (currentPlaybackMode == &arrangement && currentSong) {
+				int32_t currentPos = arrangement.lastProcessedPos;
+				int32_t newPos = currentSong->checkForArrangementLoopAndGetNewPosition(currentPos);
+
+				if (newPos != currentPos) {
+					// Loop occurred - check if we need to create overdubs
+					handleArrangementLoopOverdubCreation();
+
+					// Reset position after handling overdubs
+					currentPlaybackMode->resetPlayPos(newPos, true);
+					swungTicksTilNextEvent = 1; // Schedule immediate processing
+					arrangerView.reassessWhetherDoingAutoScroll(newPos);
+				}
+			}
+
 			// If we swapped song on just a swung tick that wasn't concurrent with a timer tick (unusual), we need
 			// to go do some stuff that would normally happen as part of the timer tick
 			if (swappedSong && isInternalClockActive() && !currentlyActioningTimerTick) {
@@ -1408,7 +1457,30 @@ void PlaybackHandler::doSongSwap(bool preservePlayPosition) {
 		if (currentSong->lastClipInstanceEnteredStartPos != -1) {
 			currentPlaybackMode = &arrangement;
 			arrangement.setupPlayback();
-			arrangement.resetPlayPos(currentSong->lastClipInstanceEnteredStartPos);
+
+			// Determine the correct starting position BEFORE calling resetPlayPos
+			int32_t startPos = currentSong->lastClipInstanceEnteredStartPos;
+
+			// Special case: if the new song has an active arrangement loop,
+			// we should start from the loop position instead of the saved position.
+			// Only do this during actual song swaps, not during startup initialization.
+			if (currentSong->shouldLoopArrangement()) {
+				int32_t loopStart = currentSong->getArrangementLoop().getStart();
+				int32_t loopEnd = currentSong->getArrangementLoop().getEnd();
+
+				// Validate loop data and check if we should jump to loop start
+				if (loopStart >= 0 && loopEnd > loopStart && startPos < loopEnd) {
+					startPos = loopStart;
+				}
+			}
+
+			// Now reset play position with the correct starting position
+			arrangement.resetPlayPos(startPos);
+
+			// Initialize playhead state for loop tracking
+			if (currentSong->shouldLoopArrangement()) {
+				currentSong->getArrangementLoop().initializePlayheadState(startPos);
+			}
 		}
 
 		// Or if we weren't switching to the arranger, the equivalent of that would get called from
@@ -2931,7 +3003,29 @@ void PlaybackHandler::switchToArrangement() {
 	stopOutputRecordingAtLoopEnd = false;
 	session.endPlayback();
 	arrangement.setupPlayback();
-	arrangement.resetPlayPos(arrangementPosToStartAtOnSwitch);
+
+	// Determine the correct starting position for arrangement playback
+	int32_t startPos = arrangementPosToStartAtOnSwitch;
+
+	// If the song has an active arrangement loop and the intended start position
+	// is before or within the loop, consider starting from the loop start
+	if (currentSong && currentSong->shouldLoopArrangement()) {
+		int32_t loopStart = currentSong->getArrangementLoop().getStart();
+		int32_t loopEnd = currentSong->getArrangementLoop().getEnd();
+
+		// If starting position is before loop end, use loop start for consistency
+		if (loopStart >= 0 && loopEnd > loopStart && startPos < loopEnd) {
+			startPos = loopStart;
+		}
+	}
+
+	arrangement.resetPlayPos(startPos);
+
+	// Initialize playhead state for loop tracking
+	if (currentSong && currentSong->shouldLoopArrangement()) {
+		currentSong->getArrangementLoop().initializePlayheadState(startPos);
+	}
+
 	arrangerView.reassessWhetherDoingAutoScroll();
 	if (display->haveOLED()) {
 		if (!isUIModeActive(UI_MODE_CLIP_PRESSED_IN_SONG_VIEW)
@@ -3269,4 +3363,190 @@ doCreateNextOverdub:
 		bool shouldExitRecordMode = (overdubNature != OverDubType::ContinuousLayering);
 		finishTempolessRecording(true, kMIDIKeyInputLatency, shouldExitRecordMode);
 	}
+}
+
+// Loop overdub creation for arrangement mode
+void PlaybackHandler::handleArrangementLoopOverdubCreation() {
+	// Only proceed if we're in arrangement mode with an active loop
+	if (currentPlaybackMode != &arrangement || !currentSong || !currentSong->shouldLoopArrangement()) {
+		return;
+	}
+
+	// Only proceed if we're recording in arrangement mode
+	if (recording != RecordingMode::ARRANGEMENT) {
+		return;
+	}
+
+	// Find all audio tracks that are currently recording and create overdubs
+	for (Output* output = currentSong->firstOutput; output; output = output->next) {
+		// Skip non-audio outputs
+		if (output->type != OutputType::AUDIO) {
+			continue;
+		}
+
+		// Skip outputs not recording in arrangement
+		if (!output->recordingInArrangement) {
+			continue;
+		}
+
+		// Get the active clip for this output
+		Clip* activeClip = output->getActiveClip();
+		if (!activeClip) {
+			continue;
+		}
+
+		// Only handle AudioClips
+		AudioClip* audioClip = static_cast<AudioClip*>(activeClip);
+		if (!audioClip) {
+			continue;
+		}
+
+		// Check if this clip is currently recording linearly
+		if (!audioClip->getCurrentlyRecordingLinearly()) {
+			continue;
+		}
+
+		// When we hit the loop boundary, we need to finish the current recording
+		// This is the FIRST time hitting the loop end during this recording session
+		if (!output->hasCompletedLoopCycle) {
+			// Mark that we've completed one loop cycle
+			output->hasCompletedLoopCycle = true;
+
+			// CRITICAL FIX: Set the clip's loopLength to match the arrangement loop
+			// The clip was created with loopLength = kMaxSequenceLength
+			// We must set it to the actual loop length BEFORE finishLinearRecording()
+			// Otherwise originalLength = loopLength will copy the wrong value
+			const ArrangementLoop& loop = currentSong->getArrangementLoop();
+			if (loop.exists() && loop.isActive()) {
+				int32_t loopLengthInTicks = loop.getEnd() - loop.getStart();
+				audioClip->loopLength = loopLengthInTicks;
+			}
+
+			// Finish the recording to capture exactly one loop's worth of audio
+			char modelStackMemory[MODEL_STACK_MAX_SIZE];
+			ModelStackWithTimelineCounter* modelStack =
+			    setupModelStackWithTimelineCounter(modelStackMemory, currentSong, audioClip);
+
+			audioClip->finishLinearRecording(modelStack, nullptr, 0);
+
+			// Clear recording flag
+			output->recordingInArrangement = false;
+			continue;
+		}
+
+		// Check if this output has pending termination (subsequent loops)
+		if (output->pendingLoopOverdubTermination) {
+			// Terminate recording for this output
+			char modelStackMemory[MODEL_STACK_MAX_SIZE];
+			ModelStackWithTimelineCounter* modelStack =
+			    setupModelStackWithTimelineCounter(modelStackMemory, currentSong, audioClip);
+
+			// Check if we should discard incomplete overdub
+			if (!output->hasCompletedLoopCycle && !audioClip->isEmpty()) {
+				// Has existing audio but didn't complete a loop cycle - abort recording
+				audioClip->abortRecording();
+			}
+			else {
+				// CRITICAL FIX: Set the clip's loopLength before finishing
+				const ArrangementLoop& loop = currentSong->getArrangementLoop();
+				if (loop.exists() && loop.isActive()) {
+					int32_t loopLengthInTicks = loop.getEnd() - loop.getStart();
+					audioClip->loopLength = loopLengthInTicks;
+				}
+
+				// Either completed a loop cycle or this is the first recording - finish normally
+				audioClip->finishLinearRecording(modelStack, nullptr, 0);
+			}
+
+			output->recordingInArrangement = false;
+			output->pendingLoopOverdubTermination = false;
+			output->hasCompletedLoopCycle = false;
+			continue;
+		}
+
+		// Check if the clip already has audio data (needed for in-place overdub)
+		if (audioClip->isEmpty()) {
+			// First recording pass - no overdub needed yet, just mark that we've completed a loop cycle
+			output->hasCompletedLoopCycle = true;
+			continue;
+		}
+
+		// We're completing a loop cycle - mark it
+		output->hasCompletedLoopCycle = true;
+
+		// CRITICAL FIX: Set the clip's loopLength to match the arrangement loop
+		// The clip was created with loopLength = kMaxSequenceLength
+		// We must set it to the actual loop length BEFORE finishLinearRecording()
+		const ArrangementLoop& loop = currentSong->getArrangementLoop();
+		if (loop.exists() && loop.isActive()) {
+			int32_t loopLengthInTicks = loop.getEnd() - loop.getStart();
+			audioClip->loopLength = loopLengthInTicks;
+		}
+
+		// Finish the current recording to complete the overdub layer
+		char modelStackMemory[MODEL_STACK_MAX_SIZE];
+		ModelStackWithTimelineCounter* modelStack =
+		    setupModelStackWithTimelineCounter(modelStackMemory, currentSong, audioClip);
+
+		audioClip->finishLinearRecording(modelStack, nullptr, 0);
+
+		// Set up for next overdub without immediately starting recording
+		// This allows the current overdub to play back before starting the next layer
+		audioClip->setupOverdubInPlace(OverDubType::ContinuousLayering);
+
+		// Don't immediately start recording - wait for user to start next layer manually
+		// This prevents the "double speed" issue by allowing proper playback timing
+		output->recordingInArrangement = false;
+	}
+}
+
+// Check if an output is currently in a loop overdub recording session
+bool PlaybackHandler::isOutputInLoopOverdubSession(Output* output) {
+	// Must be in arrangement mode with recording active
+	if (currentPlaybackMode != &arrangement || recording != RecordingMode::ARRANGEMENT) {
+		return false;
+	}
+
+	// Must have an active arrangement loop
+	if (!currentSong || !currentSong->shouldLoopArrangement()) {
+		return false;
+	}
+
+	// Output must be recording in arrangement
+	if (!output || !output->recordingInArrangement) {
+		return false;
+	}
+
+	// Must be an audio output
+	if (output->type != OutputType::AUDIO) {
+		return false;
+	}
+
+	// Must have an active audio clip that's currently recording and not empty
+	Clip* activeClip = output->getActiveClip();
+	if (!activeClip) {
+		return false;
+	}
+
+	AudioClip* audioClip = static_cast<AudioClip*>(activeClip);
+	if (!audioClip || !audioClip->getCurrentlyRecordingLinearly() || audioClip->isEmpty()) {
+		return false;
+	}
+
+	return true;
+}
+
+// Check if any outputs have active loop overdub recordings
+bool PlaybackHandler::hasActiveLoopOverdubRecordings() {
+	if (!currentSong) {
+		return false;
+	}
+
+	for (Output* output = currentSong->firstOutput; output; output = output->next) {
+		if (isOutputInLoopOverdubSession(output)) {
+			return true;
+		}
+	}
+
+	return false;
 }

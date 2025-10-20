@@ -55,6 +55,8 @@ public:
 
 	int32_t lastProcessedPos;
 	int32_t playbackStartedAtPos;
+
+private:
 };
 
 extern Arrangement arrangement;

@@ -1118,6 +1118,14 @@ weAreInArrangementEditorOrInClipInstance:
 	writer.writeAttribute("yScrollArrangementView", arrangementYScroll);
 	writer.writeAttribute("xScrollArrangementView", xScroll[NAVIGATION_ARRANGEMENT]);
 	writer.writeAttribute("xZoomArrangementView", xZoom[NAVIGATION_ARRANGEMENT]);
+
+	// Write arrangement loop state if it exists
+	if (arrangementLoop_.exists()) {
+		writer.writeAttribute("arrangerLoopStart", arrangementLoop_.getStart());
+		writer.writeAttribute("arrangerLoopEnd", arrangementLoop_.getEnd());
+		writer.writeAttribute("arrangerLoopActive", arrangementLoop_.isActive() ? 1 : 0);
+	}
+
 	writer.writeAttribute("timePerTimerTick", timePerTimerTickBig >> 32);
 	writer.writeAttribute("timerTickFraction", (uint32_t)timePerTimerTickBig);
 	writer.writeAttribute("rootNote", key.rootNote);
@@ -1333,12 +1341,7 @@ weAreInArrangementEditorOrInClipInstance:
 }
 
 Error Song::readFromFile(Deserializer& reader) {
-	D_PRINTLN("DEBUG: readFromFile");
-
 	outputClipInstanceListIsCurrentlyInvalid = true;
-
-	D_PRINTLN("");
-	D_PRINTLN("loading song!!!!!!!!!!!!!!");
 
 	char const* tagName;
 
@@ -1350,6 +1353,12 @@ Error Song::readFromFile(Deserializer& reader) {
 	}
 
 	uint64_t newTimePerTimerTick = (uint64_t)1 << 32; // TODO: make better!
+
+	// Temporary variables for arrangement loop loading (needed during file parsing)
+	int32_t arrangerLoopStart = -1;
+	int32_t arrangerLoopEnd = -1;
+	bool arrangerLoopActive = false;
+	bool arrangerLoopFound = false;
 
 	// reverb mode is freeverb for songs that predate having multiple options. New songs will set it to mutable anyway
 	// so this is only used as a fallback
@@ -1578,6 +1587,25 @@ unknownTag:
 			else if (!strcmp(tagName, "arrangementAutoScrollOn")) {
 				arrangerAutoScrollModeActive = reader.readTagOrAttributeValueInt();
 				reader.exitTag("arrangementAutoScrollOn");
+			}
+
+			// Arrangement loop attributes
+			else if (!strcmp(tagName, "arrangerLoopStart")) {
+				arrangerLoopStart = reader.readTagOrAttributeValueInt();
+				arrangerLoopFound = true;
+				reader.exitTag("arrangerLoopStart");
+			}
+
+			else if (!strcmp(tagName, "arrangerLoopEnd")) {
+				arrangerLoopEnd = reader.readTagOrAttributeValueInt();
+				arrangerLoopFound = true;
+				reader.exitTag("arrangerLoopEnd");
+			}
+
+			else if (!strcmp(tagName, "arrangerLoopActive")) {
+				arrangerLoopActive = reader.readTagOrAttributeValueInt() != 0;
+				arrangerLoopFound = true;
+				reader.exitTag("arrangerLoopActive");
 			}
 
 			else if (!strcmp(tagName, "timePerTimerTick")) {
@@ -2249,6 +2277,15 @@ skipInstance:
 	AudioEngine::logAction("aaa5.2");
 
 	AudioEngine::routineWithClusterLoading(); // -----------------------------------
+
+	// Apply arrangement loop state directly to Song's loop member
+	if (arrangerLoopFound && arrangerLoopStart != -1 && arrangerLoopEnd != -1) {
+		arrangementLoop_.setFromDeserialized(arrangerLoopStart, arrangerLoopEnd, arrangerLoopActive);
+	}
+	else {
+		// No valid loop data found, ensure loop is cleared
+		arrangementLoop_.clear();
+	}
 
 	return Error::NONE;
 }
@@ -6041,5 +6078,23 @@ numElements; c++) { Clip* clip; if (!doingClipsProvidedByOutput) { clip = clipAr
 traverseClips; }
     }
  */
+
+// Check for arrangement loop and return new position if looping should occur
+int32_t Song::checkForArrangementLoopAndGetNewPosition(int32_t currentPos) {
+	if (!arrangementLoop_.isActive()) {
+		arrangementLoop_.updatePlayheadState(currentPos);
+		return currentPos;
+	}
+
+	// Update playhead state tracking
+	arrangementLoop_.updatePlayheadState(currentPos);
+
+	// Only loop if playhead has been inside the loop and is now at/past the end
+	if (arrangementLoop_.isPlayheadInside() && arrangementLoop_.isPositionAtEnd(currentPos)) {
+		return arrangementLoop_.getLoopStartPosition();
+	}
+
+	return currentPos;
+}
 
 //    for (Output* output = firstOutput; output; output = output->next) {

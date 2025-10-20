@@ -42,6 +42,7 @@ class Kit;
 class MIDICable;
 class NoteRow;
 class Song;
+class Output;
 
 constexpr uint16_t metronomeValuesBPM[16] = {
     60, 63, 66, 69, 72, 76, 80, 84, 88, 92, 96, 100, 104, 108, 112, 116,
@@ -231,6 +232,11 @@ public:
 	void tryLoopCommand(GlobalMIDICommand command);
 
 	float calculateBPMForDisplay();
+
+	// Loop overdub support
+	void handleArrangementLoopOverdubCreation();
+	bool isOutputInLoopOverdubSession(Output* output);
+	bool hasActiveLoopOverdubRecordings();
 
 private:
 	uint32_t timerTicksToOutputTicks(uint32_t timerTicks);

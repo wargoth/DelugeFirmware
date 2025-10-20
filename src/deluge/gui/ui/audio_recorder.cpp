@@ -22,6 +22,7 @@
 #include "gui/ui/browser/sample_browser.h"
 #include "gui/ui/sound_editor.h"
 #include "gui/ui_timer_manager.h"
+#include "gui/views/arranger_view.h"
 #include "gui/views/instrument_clip_view.h"
 #include "hid/display/display.h"
 #include "hid/display/oled.h"
@@ -33,6 +34,7 @@
 #include "model/sample/sample.h"
 #include "model/sample/sample_recorder.h"
 #include "model/song/song.h"
+#include "playback/mode/arrangement.h"
 #include "playback/playback_handler.h"
 #include "processing/engines/audio_engine.h"
 #include "processing/sound/sound_drum.h"
@@ -158,6 +160,13 @@ bool AudioRecorder::beginOutputRecording(AudioRecordingFolder folder, AudioInput
 	bool success = setupRecordingToFile(channel, 2, folder, writeLoopPoints, shouldNormalize);
 
 	if (success) {
+		// Check if we're in arrangement view with an active loop
+		if (getRootUI() == &arrangerView && arrangement.hasPlaybackActive() && currentSong
+		    && currentSong->shouldLoopArrangement()) {
+			// Set up loop recording to stop at loop end
+			recorder->setLoopRecordingParams(currentSong->getArrangementLoop().getEnd());
+		}
+
 		indicator_leds::blinkLed(IndicatorLED::RECORD, 255, 1);
 	}
 

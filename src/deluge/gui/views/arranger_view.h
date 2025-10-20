@@ -41,6 +41,7 @@ public:
 	void focusRegained() override;
 	ActionResult padAction(int32_t x, int32_t y, int32_t velocity) override;
 	ActionResult handleEditPadAction(int32_t x, int32_t y, int32_t velocity);
+	ActionResult handleLoopRowPadAction(int32_t x, int32_t y, int32_t velocity);
 	ActionResult handleStatusPadAction(int32_t y, int32_t velocity, UI* ui);
 	ActionResult handleAuditionPadAction(int32_t y, int32_t velocity, UI* ui);
 	ActionResult buttonAction(deluge::hid::Button b, bool on, bool inCardRoutine) override;
@@ -56,6 +57,8 @@ public:
 	                    uint8_t occupancyMask[][kDisplayWidth + kSideBarWidth], bool drawUndefinedArea = true) override;
 	bool renderRow(ModelStack* modelStack, int32_t yDisplay, int32_t xScroll, uint32_t xZoom, RGB* thisImage,
 	               uint8_t thisOccupancyMask[], int32_t renderWidth);
+	void renderLoopRow(int32_t xScroll, uint32_t xZoom, RGB* imageThisRow, uint8_t thisOccupancyMask[],
+	                   int32_t renderWidth);
 	void editPadAction(int32_t x, int32_t y, bool on);
 	ActionResult horizontalEncoderAction(int32_t offset) override;
 	uint32_t getMaxLength() override;
@@ -118,6 +121,9 @@ public:
 
 	int32_t xScrollWhenPlaybackStarted{};
 
+	// Loop creation UI state (temporary during creation only)
+	int32_t arrangerLoopCreationStartPos{-1};
+
 	// ui
 	UIType getUIType() override { return UIType::ARRANGER; }
 
@@ -166,6 +172,7 @@ private:
 	void deleteClipInstance(Output* output, ClipInstance* clipInstance);
 	void createNewClipForClipInstance(Output* output, ClipInstance* clipInstance);
 	void recordEditPadPress(Output* output, ClipInstance* clipInstance, int32_t x, int32_t y, int32_t xScroll);
+	RGB getRainbowColor(float position);
 };
 
 extern ArrangerView arrangerView;
