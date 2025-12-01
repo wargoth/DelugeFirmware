@@ -24,21 +24,55 @@
 
 class MIDICable;
 
-// Grid layout modes for controller emulation
-enum class ControllerGridMode {
-	GENERIC_16X8,   // Full Deluge grid: 16x8 = 128 pads (MIDI notes 0-127)
-	APC40_8X5,      // APC40 compatible: 8x5 = 40 pads
-	PUSH_8X8,       // Push 2 compatible: 8x8 = 64 pads
-	LAUNCHPAD_8X8   // Launchpad compatible: 8x8 = 64 pads
+// Controller mode configuration
+struct ControllerModeConfig {
+	// MIDI channel for control messages (0-15, representing channels 1-16)
+	int32_t midiChannel = 0;
+
+	// Grid configuration
+	int32_t gridWidth = kDisplayWidth;   // Number of columns in grid
+	int32_t gridHeight = kDisplayHeight; // Number of rows in grid
+	int32_t gridBaseNote = 0;            // Base MIDI note for grid (usually 0 or 36)
+
+	// Note layout: true = row-major (default), false = column-major
+	bool rowMajorNotes = true;
+
+	// Button MIDI note offset (buttons start at this note number)
+	int32_t buttonBaseNote = 100;
+
+	// Encoder CC numbers start
+	int32_t encoderBaseCC = 71;
+
+	// Enable/disable features
+	bool sendPadPressure = true;      // Send polyphonic aftertouch
+	bool sendPadVelocity = true;      // Send velocity with note on
+	bool receiveDisplaySysex = true;  // Accept display control via SysEx
 };
 
-// Color palette modes for LED feedback
-enum class ControllerColorMode {
-	VELOCITY_TO_RGB,     // Map MIDI velocity (0-127) to RGB colors
-	FIXED_COLORS,        // Use fixed color palette
-	ABLETON_PALETTE      // Ableton Live color palette (compatible with Push/Launchpad)
-};
-
+/**
+ * Controller Mode View - Generic MIDI controller interface
+ *
+ * This mode turns Deluge into a generic MIDI controller where:
+ * - ALL hardware inputs send MIDI messages (pads, buttons, encoders)
+ * - ALL LEDs and display are controlled via incoming MIDI
+ * - Remote scripts in the DAW handle all logic and modes
+ *
+ * MIDI Protocol:
+ *
+ * OUTPUTS (Deluge -> DAW):
+ * - Pads: Note On/Off (note = base + y*width + x, velocity = pressure)
+ * - Polyphonic Aftertouch: Per-pad pressure updates
+ * - Buttons: Note On/Off (note = buttonBase + button_id)
+ * - Encoders: CC messages (CC = encoderBase + encoder_id, value = delta/absolute)
+ * - Select encoder: CC (relative values for rotation)
+ *
+ * INPUTS (DAW -> Deluge):
+ * - Pad LEDs: Note On (velocity = color index) / Note Off (turn off)
+ * - Button LEDs: Note On/Off on button channel
+ * - Display: SysEx messages for text/graphics
+ * - 7-seg display: SysEx for segment control
+ * - OLED display: SysEx for pixel data
+ */
 class ControllerModeView : public RootUI {
 public:
 	ControllerModeView();
@@ -57,7 +91,7 @@ public:
 	void renderOLED(deluge::hid::display::oled_canvas::Canvas& canvas) override;
 	void graphicsRoutine() override;
 
-	// Input handling
+	// Input handling - ALL inputs send MIDI
 	ActionResult padAction(int32_t x, int32_t y, int32_t velocity) override;
 	ActionResult buttonAction(deluge::hid::Button b, bool on, bool inCardRoutine) override;
 	ActionResult horizontalEncoderAction(int32_t offset) override;
@@ -65,47 +99,54 @@ public:
 	void selectEncoderAction(int8_t offset) override;
 	void modEncoderAction(int32_t whichModEncoder, int32_t offset) override;
 	void modEncoderButtonAction(uint8_t whichModEncoder, bool on) override;
+	void modButtonAction(uint8_t whichButton, bool on) override;
 
-	// MIDI feedback handling
+	// MIDI input handling - for LED/display control
 	bool noteOnReceivedForMidiLearn(MIDICable& fromCable, int32_t channel, int32_t note, int32_t velocity) override;
-	void ccReceivedForFeedback(MIDICable& fromCable, int32_t channel, int32_t cc, int32_t value);
+	void handleMidiNoteForLED(int32_t channel, int32_t note, int32_t velocity);
+	void handleMidiCCForControl(int32_t channel, int32_t cc, int32_t value);
+	void handleMidiSysexForDisplay(uint8_t* data, int32_t len);
 
 	// Configuration
-	void setGridMode(ControllerGridMode mode);
-	void setColorMode(ControllerColorMode mode);
-	void setMidiChannel(int32_t channel);
-
-	ControllerGridMode getGridMode() const { return gridMode_; }
-	ControllerColorMode getColorMode() const { return colorMode_; }
-	int32_t getMidiChannel() const { return midiChannel_; }
+	ControllerModeConfig& getConfig() { return config_; }
+	void setConfig(const ControllerModeConfig& config);
 
 private:
-	// Grid layout configuration
-	ControllerGridMode gridMode_;
-	ControllerColorMode colorMode_;
-	int32_t midiChannel_;  // MIDI channel for controller messages (0-15)
+	ControllerModeConfig config_;
 
-	// Pad state tracking
-	bool padPressed_[kDisplayWidth][kDisplayHeight];
+	// Display state (controlled by remote script via MIDI)
 	RGB padColors_[kDisplayWidth][kDisplayHeight];
+	bool buttonLEDStates_[64]; // State for various button LEDs
+	char displayText_[20];     // Text for 7-seg or OLED display
+	uint8_t displaySegments_[4]; // 7-seg segment data
 
-	// Button state tracking
-	bool buttonPressed_[16];  // Track state of various buttons
+	// Pad pressure tracking for aftertouch
+	uint8_t padPressure_[kDisplayWidth][kDisplayHeight];
+	bool padPressed_[kDisplayWidth][kDisplayHeight];
 
-	// Helper functions
+	// Helper functions for MIDI mapping
 	int32_t padToMidiNote(int32_t x, int32_t y) const;
 	void midiNoteToPad(int32_t note, int32_t& x, int32_t& y) const;
-	RGB velocityToColor(int32_t velocity) const;
 	int32_t buttonToMidiNote(deluge::hid::Button button) const;
-	int32_t encoderToMidiCC(int32_t encoder) const;
+	deluge::hid::Button midiNoteToButton(int32_t note) const;
 
+	// Send MIDI messages
 	void sendPadNoteOn(int32_t x, int32_t y, int32_t velocity);
 	void sendPadNoteOff(int32_t x, int32_t y);
-	void sendButtonNote(deluge::hid::Button button, bool on);
-	void sendEncoderCC(int32_t encoder, int32_t value);
+	void sendPadAftertouch(int32_t x, int32_t y, int32_t pressure);
+	void sendButtonMidi(deluge::hid::Button button, bool on);
+	void sendEncoderCC(int32_t ccNumber, int32_t value);
 
-	void updatePadDisplay();
-	void displayStatus();
+	// SysEx protocol implementation
+	void sendIdentityReply();
+	void processSysexDisplayCommand(uint8_t* data, int32_t len);
+	void processSysex7SegCommand(uint8_t* data, int32_t len);
+	void processSysexOLEDCommand(uint8_t* data, int32_t len);
+
+	// Update display based on MIDI-controlled state
+	void updatePadLEDs();
+	void updateButtonLEDs();
+	void updateDisplay();
 };
 
 extern ControllerModeView controllerModeView;
