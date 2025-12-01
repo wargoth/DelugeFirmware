@@ -171,7 +171,7 @@ ActionResult ControllerModeView::padAction(int32_t x, int32_t y, int32_t velocit
 
 ActionResult ControllerModeView::buttonAction(deluge::hid::Button b, bool on, bool inCardRoutine) {
 	// Special case: SHIFT+BACK exits controller mode
-	if (b == deluge::hid::Button::BACK && on && isShiftButtonPressed()) {
+	if (b == deluge::hid::Button::BACK && on && Buttons::isShiftButtonPressed()) {
 		display->displayPopup(deluge::l10n::get(deluge::l10n::String::STRING_FOR_EXITING_CONTROLLER_MODE));
 		changeRootUI(&sessionView);
 		return ActionResult::DEALT_WITH;
@@ -187,7 +187,7 @@ ActionResult ControllerModeView::horizontalEncoderAction(int32_t offset) {
 	// Send horizontal encoder as CC
 	// Use relative CC encoding (64 = no change, <64 = left, >64 = right)
 	int32_t value = 64 + offset;
-	value = std::max(0, std::min(127, value));
+	value = std::max(0_i32, std::min(127_i32, value));
 	sendEncoderCC(config_.encoderBaseCC + 8, value); // CC +8 for horizontal encoder
 	return ActionResult::DEALT_WITH;
 }
@@ -195,7 +195,7 @@ ActionResult ControllerModeView::horizontalEncoderAction(int32_t offset) {
 ActionResult ControllerModeView::verticalEncoderAction(int32_t offset, bool inCardRoutine) {
 	// Send vertical encoder as CC
 	int32_t value = 64 + offset;
-	value = std::max(0, std::min(127, value));
+	value = std::max(0_i32, std::min(127_i32, value));
 	sendEncoderCC(config_.encoderBaseCC + 9, value); // CC +9 for vertical encoder
 	return ActionResult::DEALT_WITH;
 }
@@ -203,7 +203,7 @@ ActionResult ControllerModeView::verticalEncoderAction(int32_t offset, bool inCa
 void ControllerModeView::selectEncoderAction(int8_t offset) {
 	// Send select encoder as CC (relative)
 	int32_t value = 64 + offset;
-	value = std::max(0, std::min(127, value));
+	value = std::max(0_i32, std::min(127_i32, value));
 	sendEncoderCC(config_.encoderBaseCC + 10, value); // CC +10 for select encoder
 }
 
@@ -211,7 +211,7 @@ void ControllerModeView::modEncoderAction(int32_t whichModEncoder, int32_t offse
 	// Send gold knobs as CC (relative or absolute depending on remote script preference)
 	// Using relative encoding by default
 	int32_t value = 64 + offset;
-	value = std::max(0, std::min(127, value));
+	value = std::max(0_i32, std::min(127_i32, value));
 	sendEncoderCC(config_.encoderBaseCC + whichModEncoder, value);
 }
 
@@ -523,32 +523,32 @@ void ControllerModeView::midiNoteToPad(int32_t note, int32_t& x, int32_t& y) con
 int32_t ControllerModeView::buttonToMidiNote(deluge::hid::Button button) const {
 	// Map each button to a unique MIDI note
 	// This mapping can be customized based on the target DAW
-	using namespace deluge::hid;
+	using namespace deluge::hid::button;
 
 	int32_t offset = 0;
 
 	// Main transport/function buttons
 	switch (button) {
-	case Button::PLAY: offset = 0; break;
-	case Button::RECORD: offset = 1; break;
-	case Button::TAP_TEMPO: offset = 2; break;
-	case Button::SYNC_SCALING: offset = 3; break;
-	case Button::LEARN: offset = 4; break;
-	case Button::SCALE: offset = 5; break;
-	case Button::CROSS_SCREEN_EDIT: offset = 6; break;
-	case Button::BACK: offset = 7; break;
-	case Button::LOAD: offset = 8; break;
-	case Button::SAVE: offset = 9; break;
-	case Button::KEYBOARD: offset = 10; break;
-	case Button::KIT: offset = 11; break;
-	case Button::SYNTH: offset = 12; break;
-	case Button::MIDI: offset = 13; break;
-	case Button::CV: offset = 14; break;
-	case Button::CLIP: offset = 15; break;
-	case Button::SONG: offset = 16; break;
-	case Button::AFFECT_ENTIRE: offset = 17; break;
-	case Button::SHIFT: offset = 18; break;
-	case Button::SELECT_ENC: offset = 19; break;
+	case PLAY: offset = 0; break;
+	case RECORD: offset = 1; break;
+	case TAP_TEMPO: offset = 2; break;
+	case SYNC_SCALING: offset = 3; break;
+	case LEARN: offset = 4; break;
+	case SCALE_MODE: offset = 5; break;
+	case CROSS_SCREEN_EDIT: offset = 6; break;
+	case BACK: offset = 7; break;
+	case LOAD: offset = 8; break;
+	case SAVE: offset = 9; break;
+	case KEYBOARD: offset = 10; break;
+	case KIT: offset = 11; break;
+	case SYNTH: offset = 12; break;
+	case MIDI: offset = 13; break;
+	case CV: offset = 14; break;
+	case CLIP_VIEW: offset = 15; break;
+	case SESSION_VIEW: offset = 16; break;
+	case AFFECT_ENTIRE: offset = 17; break;
+	case SHIFT: offset = 18; break;
+	case SELECT_ENC: offset = 19; break;
 	default: return -1;
 	}
 
@@ -563,13 +563,13 @@ deluge::hid::Button ControllerModeView::midiNoteToButton(int32_t note) const {
 		return static_cast<deluge::hid::Button>(-1);
 	}
 
-	using namespace deluge::hid;
-	const Button buttons[] = {
-	    Button::PLAY, Button::RECORD, Button::TAP_TEMPO, Button::SYNC_SCALING,
-	    Button::LEARN, Button::SCALE, Button::CROSS_SCREEN_EDIT, Button::BACK,
-	    Button::LOAD, Button::SAVE, Button::KEYBOARD, Button::KIT,
-	    Button::SYNTH, Button::MIDI, Button::CV, Button::CLIP,
-	    Button::SONG, Button::AFFECT_ENTIRE, Button::SHIFT, Button::SELECT_ENC
+	using namespace deluge::hid::button;
+	const deluge::hid::Button buttons[] = {
+	    PLAY, RECORD, TAP_TEMPO, SYNC_SCALING,
+	    LEARN, SCALE_MODE, CROSS_SCREEN_EDIT, BACK,
+	    LOAD, SAVE, KEYBOARD, KIT,
+	    SYNTH, MIDI, CV, CLIP_VIEW,
+	    SESSION_VIEW, AFFECT_ENTIRE, SHIFT, SELECT_ENC
 	};
 
 	return buttons[offset];
