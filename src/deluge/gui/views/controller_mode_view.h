@@ -101,6 +101,7 @@ public:
 
 	// MIDI input handling - for LED/display control
 	bool noteOnReceivedForMidiLearn(MIDICable& fromCable, int32_t channel, int32_t note, int32_t velocity) override;
+	bool ccReceivedForMidiLearn(MIDICable& fromCable, int32_t channel, int32_t cc, int32_t value) override;
 	void handleMidiNoteForLED(int32_t channel, int32_t note, int32_t velocity);
 	void handleMidiCCForControl(int32_t channel, int32_t cc, int32_t value);
 	void handleMidiSysexForDisplay(uint8_t* data, int32_t len);
@@ -111,6 +112,9 @@ public:
 
 private:
 	ControllerModeConfig config_;
+
+	// MIDI cable for sending/receiving controller messages
+	MIDICable* activeCable_ = nullptr;
 
 	// Display state (controlled by remote script via MIDI)
 	RGB padColors_[kDisplayWidth][kDisplayHeight];

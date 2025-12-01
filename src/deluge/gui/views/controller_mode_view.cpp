@@ -22,9 +22,11 @@
 #include "hid/display/display.h"
 #include "hid/button.h"
 #include "hid/buttons.h"
+#include "hid/led/indicator_leds.h"
 #include "io/midi/midi_engine.h"
 #include "io/midi/midi_device.h"
 #include "io/midi/midi_device_manager.h"
+#include "model/midi/message.h"
 #include "gui/l10n/l10n.h"
 #include "memory/general_memory_allocator.h"
 #include <string.h>
@@ -62,6 +64,13 @@ ControllerModeView::ControllerModeView() {
 }
 
 bool ControllerModeView::opened() {
+	// Select USB device cable for controller mode communication
+	// Controller mode uses USB peripheral mode (Deluge -> DAW)
+	if (MIDIDeviceManager::root_usb) {
+		// Get the first USB cable (cable 0)
+		activeCable_ = MIDIDeviceManager::root_usb->getCable(0);
+	}
+
 	focusRegained();
 
 	// Send identity to DAW so remote script knows Deluge is ready
@@ -207,15 +216,31 @@ void ControllerModeView::modEncoderAction(int32_t whichModEncoder, int32_t offse
 }
 
 void ControllerModeView::modEncoderButtonAction(uint8_t whichModEncoder, bool on) {
+	if (!activeCable_) {
+		return;
+	}
+
 	// Gold knob buttons send MIDI notes (button base + encoder number)
 	int32_t note = config_.buttonBaseNote + 20 + whichModEncoder; // Offset for encoder buttons
-	midiEngine.sendNote(MIDISource::INTERNAL, on, note, on ? 127 : 0, config_.midiChannel + 1);
+	if (note >= 0 && note <= 127) {
+		MIDIMessage msg = on ? MIDIMessage::noteOn(config_.midiChannel, note, 127)
+		                     : MIDIMessage::noteOff(config_.midiChannel, note, 0);
+		activeCable_->sendMessage(msg);
+	}
 }
 
 void ControllerModeView::modButtonAction(uint8_t whichButton, bool on) {
+	if (!activeCable_) {
+		return;
+	}
+
 	// Mod matrix buttons send MIDI notes
 	int32_t note = config_.buttonBaseNote + 30 + whichButton; // Offset for mod buttons
-	midiEngine.sendNote(MIDISource::INTERNAL, on, note, on ? 127 : 0, config_.midiChannel + 1);
+	if (note >= 0 && note <= 127) {
+		MIDIMessage msg = on ? MIDIMessage::noteOn(config_.midiChannel, note, 127)
+		                     : MIDIMessage::noteOff(config_.midiChannel, note, 0);
+		activeCable_->sendMessage(msg);
+	}
 }
 
 //==============================================================================
@@ -223,30 +248,51 @@ void ControllerModeView::modButtonAction(uint8_t whichButton, bool on) {
 //==============================================================================
 
 void ControllerModeView::sendPadNoteOn(int32_t x, int32_t y) {
+	if (!activeCable_) {
+		return;
+	}
+
 	int32_t note = padToMidiNote(x, y);
 	if (note >= 0 && note <= 127) {
 		// Deluge doesn't have velocity sensing - send fixed velocity 127
-		midiEngine.sendNote(MIDISource::INTERNAL, true, note, 127, config_.midiChannel + 1);
+		MIDIMessage msg = MIDIMessage::noteOn(config_.midiChannel, note, 127);
+		activeCable_->sendMessage(msg);
 	}
 }
 
 void ControllerModeView::sendPadNoteOff(int32_t x, int32_t y) {
+	if (!activeCable_) {
+		return;
+	}
+
 	int32_t note = padToMidiNote(x, y);
 	if (note >= 0 && note <= 127) {
-		midiEngine.sendNote(MIDISource::INTERNAL, false, note, 0, config_.midiChannel + 1);
+		MIDIMessage msg = MIDIMessage::noteOff(config_.midiChannel, note, 0);
+		activeCable_->sendMessage(msg);
 	}
 }
 
 void ControllerModeView::sendButtonMidi(deluge::hid::Button button, bool on) {
+	if (!activeCable_) {
+		return;
+	}
+
 	int32_t note = buttonToMidiNote(button);
 	if (note >= 0) {
-		midiEngine.sendNote(MIDISource::INTERNAL, on, note, on ? 127 : 0, config_.midiChannel + 1);
+		MIDIMessage msg = on ? MIDIMessage::noteOn(config_.midiChannel, note, 127)
+		                     : MIDIMessage::noteOff(config_.midiChannel, note, 0);
+		activeCable_->sendMessage(msg);
 	}
 }
 
 void ControllerModeView::sendEncoderCC(int32_t ccNumber, int32_t value) {
+	if (!activeCable_) {
+		return;
+	}
+
 	if (ccNumber >= 0 && ccNumber <= 127) {
-		midiEngine.sendCC(MIDISource::INTERNAL, config_.midiChannel + 1, ccNumber, value);
+		MIDIMessage msg = MIDIMessage::cc(config_.midiChannel, ccNumber, value);
+		activeCable_->sendMessage(msg);
 	}
 }
 
@@ -261,6 +307,15 @@ bool ControllerModeView::noteOnReceivedForMidiLearn(MIDICable& fromCable, int32_
 	}
 
 	handleMidiNoteForLED(channel, note, velocity);
+	return true;
+}
+
+bool ControllerModeView::ccReceivedForMidiLearn(MIDICable& fromCable, int32_t channel, int32_t cc, int32_t value) {
+	if (channel != config_.midiChannel) {
+		return false;
+	}
+
+	handleMidiCCForControl(channel, cc, value);
 	return true;
 }
 
@@ -415,8 +470,10 @@ void ControllerModeView::sendIdentityReply() {
 	    0xF7  // SysEx end
 	};
 
-	// Send via MIDI engine
-	// midiEngine.sendSysex(identity, sizeof(identity));
+	// Send via active MIDI cable
+	if (activeCable_) {
+		activeCable_->sendSysex(identity, sizeof(identity));
+	}
 }
 
 //==============================================================================
@@ -527,13 +584,79 @@ void ControllerModeView::updatePadLEDs() {
 }
 
 void ControllerModeView::updateButtonLEDs() {
-	// Update button LEDs based on state set by remote script
-	// This would interface with actual button LED hardware
+	// Update button LEDs based on state set by remote script via MIDI
+	// Map button note numbers to actual button LEDs
+	using namespace indicator_leds;
+
+	// Map the first 20 button states to actual button LEDs
+	// Note offsets match buttonToMidiNote() mapping
+	if (config_.buttonBaseNote + 0 < 64 && buttonLEDStates_[config_.buttonBaseNote + 0]) {
+		setLedState(LED::PLAY, buttonLEDStates_[0]);
+	}
+	if (config_.buttonBaseNote + 1 < 64) {
+		setLedState(LED::RECORD, buttonLEDStates_[1]);
+	}
+	if (config_.buttonBaseNote + 2 < 64) {
+		setLedState(LED::TAP_TEMPO, buttonLEDStates_[2]);
+	}
+	if (config_.buttonBaseNote + 3 < 64) {
+		setLedState(LED::SYNC_SCALING, buttonLEDStates_[3]);
+	}
+	if (config_.buttonBaseNote + 4 < 64) {
+		setLedState(LED::LEARN, buttonLEDStates_[4]);
+	}
+	if (config_.buttonBaseNote + 5 < 64) {
+		setLedState(LED::SCALE_MODE, buttonLEDStates_[5]);
+	}
+	if (config_.buttonBaseNote + 6 < 64) {
+		setLedState(LED::CROSS_SCREEN_EDIT, buttonLEDStates_[6]);
+	}
+	if (config_.buttonBaseNote + 7 < 64) {
+		setLedState(LED::BACK, buttonLEDStates_[7]);
+	}
+	if (config_.buttonBaseNote + 8 < 64) {
+		setLedState(LED::LOAD, buttonLEDStates_[8]);
+	}
+	if (config_.buttonBaseNote + 9 < 64) {
+		setLedState(LED::SAVE, buttonLEDStates_[9]);
+	}
+	if (config_.buttonBaseNote + 10 < 64) {
+		setLedState(LED::KEYBOARD, buttonLEDStates_[10]);
+	}
+	if (config_.buttonBaseNote + 11 < 64) {
+		setLedState(LED::KIT, buttonLEDStates_[11]);
+	}
+	if (config_.buttonBaseNote + 12 < 64) {
+		setLedState(LED::SYNTH, buttonLEDStates_[12]);
+	}
+	if (config_.buttonBaseNote + 13 < 64) {
+		setLedState(LED::MIDI, buttonLEDStates_[13]);
+	}
+	if (config_.buttonBaseNote + 14 < 64) {
+		setLedState(LED::CV, buttonLEDStates_[14]);
+	}
+	if (config_.buttonBaseNote + 15 < 64) {
+		setLedState(LED::CLIP_VIEW, buttonLEDStates_[15]);
+	}
+	if (config_.buttonBaseNote + 16 < 64) {
+		setLedState(LED::SESSION_VIEW, buttonLEDStates_[16]);
+	}
+	if (config_.buttonBaseNote + 17 < 64) {
+		setLedState(LED::AFFECT_ENTIRE, buttonLEDStates_[17]);
+	}
+	if (config_.buttonBaseNote + 18 < 64) {
+		setLedState(LED::SHIFT, buttonLEDStates_[18]);
+	}
 }
 
 void ControllerModeView::updateEncoderLEDs() {
-	// Update gold encoder LEDs based on state set by remote script
-	// LED state 0-127 could map to different brightness or colors
-	// This would interface with actual encoder LED hardware
+	// Update gold encoder LEDs based on state set by remote script via MIDI CC
+	// LED state 0-127 maps to brightness level
+	for (int i = 0; i < 8; i++) {
+		uint8_t level = encoderLEDStates_[i];
+		// Convert 0-127 MIDI value to 0-50 LED brightness (Deluge indicator range)
+		uint8_t brightness = (level * 50) / 127;
+		indicator_leds::setKnobIndicatorLevel(i, brightness);
+	}
 	uiNeedsRendering(this);
 }
