@@ -53,7 +53,7 @@ ControllerModeView::ControllerModeView() {
 	// Clear all state
 	memset(padColors_, 0, sizeof(padColors_));
 	memset(buttonLEDStates_, 0, sizeof(buttonLEDStates_));
-	memset(padPressure_, 0, sizeof(padPressure_));
+	memset(encoderLEDStates_, 0, sizeof(encoderLEDStates_));
 	memset(padPressed_, 0, sizeof(padPressed_));
 	memset(displayText_, 0, sizeof(displayText_));
 	memset(displaySegments_, 0, sizeof(displaySegments_));
@@ -146,20 +146,13 @@ void ControllerModeView::updateDisplay() {
 
 ActionResult ControllerModeView::padAction(int32_t x, int32_t y, int32_t velocity) {
 	if (velocity > 0) {
-		// Pad pressed
+		// Pad pressed - Deluge doesn't have velocity sensing, send fixed velocity
 		padPressed_[x][y] = true;
-		padPressure_[x][y] = velocity;
-		sendPadNoteOn(x, y, velocity);
-
-		// Send initial aftertouch if enabled
-		if (config_.sendPadPressure) {
-			sendPadAftertouch(x, y, velocity);
-		}
+		sendPadNoteOn(x, y);
 	}
 	else {
 		// Pad released
 		padPressed_[x][y] = false;
-		padPressure_[x][y] = 0;
 		sendPadNoteOff(x, y);
 	}
 
@@ -229,11 +222,11 @@ void ControllerModeView::modButtonAction(uint8_t whichButton, bool on) {
 // MIDI OUTPUT - Send hardware state to DAW
 //==============================================================================
 
-void ControllerModeView::sendPadNoteOn(int32_t x, int32_t y, int32_t velocity) {
+void ControllerModeView::sendPadNoteOn(int32_t x, int32_t y) {
 	int32_t note = padToMidiNote(x, y);
 	if (note >= 0 && note <= 127) {
-		int32_t vel = config_.sendPadVelocity ? velocity : 100;
-		midiEngine.sendNote(MIDISource::INTERNAL, true, note, vel, config_.midiChannel + 1);
+		// Deluge doesn't have velocity sensing - send fixed velocity 127
+		midiEngine.sendNote(MIDISource::INTERNAL, true, note, 127, config_.midiChannel + 1);
 	}
 }
 
@@ -241,14 +234,6 @@ void ControllerModeView::sendPadNoteOff(int32_t x, int32_t y) {
 	int32_t note = padToMidiNote(x, y);
 	if (note >= 0 && note <= 127) {
 		midiEngine.sendNote(MIDISource::INTERNAL, false, note, 0, config_.midiChannel + 1);
-	}
-}
-
-void ControllerModeView::sendPadAftertouch(int32_t x, int32_t y, int32_t pressure) {
-	int32_t note = padToMidiNote(x, y);
-	if (note >= 0 && note <= 127) {
-		// Send polyphonic aftertouch
-		midiEngine.sendPolyphonicAftertouch(MIDISource::INTERNAL, config_.midiChannel + 1, pressure, note, 0);
 	}
 }
 
@@ -324,8 +309,15 @@ void ControllerModeView::handleMidiNoteForLED(int32_t channel, int32_t note, int
 }
 
 void ControllerModeView::handleMidiCCForControl(int32_t channel, int32_t cc, int32_t value) {
-	// CCs could control other aspects like display brightness, etc.
-	// For now, remote script uses SysEx for complex commands
+	// Check if this is an encoder LED control message
+	// Encoder LEDs use CC = encoderBaseCC + 20 + encoder_id
+	int32_t encoderLEDBase = config_.encoderBaseCC + 20;
+	if (cc >= encoderLEDBase && cc < encoderLEDBase + 8) {
+		int32_t encoderIndex = cc - encoderLEDBase;
+		encoderLEDStates_[encoderIndex] = value;
+		updateEncoderLEDs();
+	}
+	// Other CCs could control display brightness, etc.
 }
 
 void ControllerModeView::handleMidiSysexForDisplay(uint8_t* data, int32_t len) {
@@ -537,4 +529,11 @@ void ControllerModeView::updatePadLEDs() {
 void ControllerModeView::updateButtonLEDs() {
 	// Update button LEDs based on state set by remote script
 	// This would interface with actual button LED hardware
+}
+
+void ControllerModeView::updateEncoderLEDs() {
+	// Update gold encoder LEDs based on state set by remote script
+	// LED state 0-127 could map to different brightness or colors
+	// This would interface with actual encoder LED hardware
+	uiNeedsRendering(this);
 }

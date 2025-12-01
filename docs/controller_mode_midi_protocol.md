@@ -33,19 +33,14 @@ Note Layout: Row-major (note = base + y*width + x)
 Status: 0x90 (Note On, channel 1)
 Note:   gridBaseNote + (y * gridWidth) + x
         Default: 0-127 for full 16x8 grid
-Velocity: Pad pressure (0-127) or fixed 100
+Velocity: 127 (fixed - Deluge hardware does not support velocity sensing)
 
 Status: 0x80 (Note Off, channel 1)
 Note:   Same as above
 Velocity: 0
 ```
 
-**Polyphonic Aftertouch (optional):**
-```
-Status: 0xA0 (Poly Aftertouch, channel 1)
-Note:   Same as pad note
-Pressure: 0-127
-```
+**Note:** Deluge does not support velocity sensing or polyphonic aftertouch.
 
 ### Buttons
 
@@ -67,8 +62,8 @@ SYNTH = 112          MIDI = 113           CV = 114
 CLIP = 115           SONG = 116           AFFECT_ENTIRE = 117
 SHIFT = 118          SELECT_ENC = 119
 
-Gold Knob Buttons: 120-127
-Mod Matrix Buttons: 130-137
+Gold Encoder Buttons (8 encoders): 120-127
+Mod Encoder Buttons (8 encoders): 130-137
 ```
 
 ### Encoders
@@ -150,6 +145,25 @@ Note:   Button note (same as button mapping)
 Velocity: >0 for on, 0 for off
 ```
 
+### Encoder LED Control
+
+Gold encoder LEDs can be controlled individually:
+
+```
+Status: 0xB0 (CC, channel 1)
+CC Number: encoderBaseCC + 20 + encoder_id
+           Default: CC 91-98 (for encoders 0-7)
+Value: 0-127 (LED brightness/state)
+       0     = Off
+       1-127 = On (brightness level if supported)
+```
+
+**Example:**
+```
+Control encoder 0 LED: CC 91
+Control encoder 7 LED: CC 98
+```
+
 ### Display Control (SysEx)
 
 **Set Display Text:**
@@ -213,15 +227,17 @@ Command ID | Description
 ```python
 # Simple example remote script
 
-def on_pad_pressed(x, y, velocity):
-    """Deluge sent us a pad press"""
-    # x = note % 16
-    # y = note // 16
+def on_pad_pressed(note, velocity):
+    """Deluge sent us a pad press (velocity is always 127)"""
+    # Calculate x, y from note number
+    x = note % 16
+    y = note // 16
+
     # Launch clip at this position
     session.scene(y).clip_slot(x).fire()
 
     # Set LED to green
-    send_midi((0x90, y * 16 + x, 48))  # Green color index
+    send_midi((0x90, note, 48))  # Green color index
 
 def set_led_rgb(x, y, r, g, b):
     """Set specific pad to exact RGB color"""
@@ -253,11 +269,19 @@ config.rowMajorNotes = true;
 controllerModeView.setConfig(config);
 ```
 
+## Performance Characteristics
+
+See [controller_mode_bandwidth_latency.md](controller_mode_bandwidth_latency.md) for detailed analysis of:
+- MIDI bandwidth usage (typically <1% on USB MIDI)
+- Round-trip latency (5-10ms typical)
+- Comparison to commercial controllers
+- **Recommendation: Always use USB MIDI** (not DIN MIDI) for optimal performance
+
 ## Notes
 
 - **Exit**: Press SHIFT+BACK to exit controller mode
 - **MIDI Channel**: All messages on configured channel (default: channel 1)
-- **Polyphonic Aftertouch**: Can be disabled via config if not needed
+- **Hardware Limitations**: Deluge does not support velocity sensing or polyphonic aftertouch
 - **SysEx**: Can be disabled via config for security
 - **Color Palette**: Simple velocity-based palette for quick scripting
 - **Full RGB**: SysEx for precise color control

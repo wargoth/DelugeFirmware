@@ -44,8 +44,6 @@ struct ControllerModeConfig {
 	int32_t encoderBaseCC = 71;
 
 	// Enable/disable features
-	bool sendPadPressure = true;      // Send polyphonic aftertouch
-	bool sendPadVelocity = true;      // Send velocity with note on
 	bool receiveDisplaySysex = true;  // Accept display control via SysEx
 };
 
@@ -60,8 +58,7 @@ struct ControllerModeConfig {
  * MIDI Protocol:
  *
  * OUTPUTS (Deluge -> DAW):
- * - Pads: Note On/Off (note = base + y*width + x, velocity = pressure)
- * - Polyphonic Aftertouch: Per-pad pressure updates
+ * - Pads: Note On/Off (note = base + y*width + x, fixed velocity 127)
  * - Buttons: Note On/Off (note = buttonBase + button_id)
  * - Encoders: CC messages (CC = encoderBase + encoder_id, value = delta/absolute)
  * - Select encoder: CC (relative values for rotation)
@@ -69,6 +66,7 @@ struct ControllerModeConfig {
  * INPUTS (DAW -> Deluge):
  * - Pad LEDs: Note On (velocity = color index) / Note Off (turn off)
  * - Button LEDs: Note On/Off on button channel
+ * - Encoder LEDs: CC (CC = encoderBase + 20 + encoder_id, value = LED state)
  * - Display: SysEx messages for text/graphics
  * - 7-seg display: SysEx for segment control
  * - OLED display: SysEx for pixel data
@@ -117,11 +115,11 @@ private:
 	// Display state (controlled by remote script via MIDI)
 	RGB padColors_[kDisplayWidth][kDisplayHeight];
 	bool buttonLEDStates_[64]; // State for various button LEDs
+	uint8_t encoderLEDStates_[8]; // State for gold encoder LEDs (0-127)
 	char displayText_[20];     // Text for 7-seg or OLED display
 	uint8_t displaySegments_[4]; // 7-seg segment data
 
-	// Pad pressure tracking for aftertouch
-	uint8_t padPressure_[kDisplayWidth][kDisplayHeight];
+	// Pad state tracking
 	bool padPressed_[kDisplayWidth][kDisplayHeight];
 
 	// Helper functions for MIDI mapping
@@ -131,9 +129,8 @@ private:
 	deluge::hid::Button midiNoteToButton(int32_t note) const;
 
 	// Send MIDI messages
-	void sendPadNoteOn(int32_t x, int32_t y, int32_t velocity);
+	void sendPadNoteOn(int32_t x, int32_t y);
 	void sendPadNoteOff(int32_t x, int32_t y);
-	void sendPadAftertouch(int32_t x, int32_t y, int32_t pressure);
 	void sendButtonMidi(deluge::hid::Button button, bool on);
 	void sendEncoderCC(int32_t ccNumber, int32_t value);
 
@@ -146,6 +143,7 @@ private:
 	// Update display based on MIDI-controlled state
 	void updatePadLEDs();
 	void updateButtonLEDs();
+	void updateEncoderLEDs();
 	void updateDisplay();
 };
 
