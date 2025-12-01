@@ -551,6 +551,12 @@ int32_t ControllerModeView::buttonToMidiNote(deluge::hid::Button button) const {
 	case AFFECT_ENTIRE: offset = 17; break;
 	case SHIFT: offset = 18; break;
 	case SELECT_ENC: offset = 19; break;
+	case TRIPLETS: offset = 20; break;
+	case X_ENC: offset = 21; break;         // Horizontal encoder button
+	case Y_ENC: offset = 22; break;         // Vertical encoder button
+	case TEMPO_ENC: offset = 23; break;     // Tempo encoder button
+	case MOD_ENCODER_0: offset = 24; break; // Gold knob 0 button
+	case MOD_ENCODER_1: offset = 25; break; // Gold knob 1 button
 	default: return -1;
 	}
 
@@ -561,7 +567,7 @@ deluge::hid::Button ControllerModeView::midiNoteToButton(int32_t note) const {
 	// Reverse mapping from MIDI note to button
 	// Used for LED control
 	int32_t offset = note - config_.buttonBaseNote;
-	if (offset < 0 || offset > 19) {
+	if (offset < 0 || offset > 25) {
 		return static_cast<deluge::hid::Button>(-1);
 	}
 
@@ -571,7 +577,9 @@ deluge::hid::Button ControllerModeView::midiNoteToButton(int32_t note) const {
 	    LEARN, SCALE_MODE, CROSS_SCREEN_EDIT, BACK,
 	    LOAD, SAVE, KEYBOARD, KIT,
 	    SYNTH, MIDI, CV, CLIP_VIEW,
-	    SESSION_VIEW, AFFECT_ENTIRE, SHIFT, SELECT_ENC
+	    SESSION_VIEW, AFFECT_ENTIRE, SHIFT, SELECT_ENC,
+	    TRIPLETS, X_ENC, Y_ENC, TEMPO_ENC,
+	    MOD_ENCODER_0, MOD_ENCODER_1
 	};
 
 	return buttons[offset];

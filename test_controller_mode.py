@@ -55,23 +55,29 @@ BUTTON_NAMES = {
     100: 'PLAY',
     101: 'RECORD',
     102: 'TAP_TEMPO',
-    103: 'UNDO',
-    104: 'REDO',
+    103: 'SYNC_SCALING',
+    104: 'LEARN',
     105: 'SCALE_MODE',
     106: 'CROSS_SCREEN_EDIT',
     107: 'BACK',
-    108: 'AFFECT_ENTIRE',
-    109: 'SELECT',
-    110: 'SAVE',
-    111: 'LEARN',
+    108: 'LOAD',
+    109: 'SAVE',
+    110: 'KEYBOARD',
+    111: 'KIT',
     112: 'SYNTH',
-    113: 'KIT',
-    114: 'MIDI',
+    113: 'MIDI',
+    114: 'CV',
     115: 'CLIP_VIEW',
     116: 'SESSION_VIEW',
-    117: 'SONG_VIEW',
-    118: 'KEYBOARD',
-    119: 'SEQUENCE',
+    117: 'AFFECT_ENTIRE',
+    118: 'SHIFT',
+    119: 'SELECT_ENC',
+    120: 'TRIPLETS',
+    121: 'X_ENC',           # Horizontal encoder button
+    122: 'Y_ENC',           # Vertical encoder button
+    123: 'TEMPO_ENC',       # Tempo encoder button
+    124: 'MOD_ENCODER_0',   # Gold knob 0 button
+    125: 'MOD_ENCODER_1',   # Gold knob 1 button
 }
 
 # Encoder mapping

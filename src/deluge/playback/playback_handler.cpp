@@ -2855,6 +2855,14 @@ bool PlaybackHandler::offerNoteToLearnedThings(MIDICable& cable, bool on, int32_
 
 void PlaybackHandler::noteMessageReceived(MIDICable& cable, bool on, int32_t channel, int32_t note, int32_t velocity,
                                           bool* doingMidiThru) {
+	// Controller Mode gets Note On/Off messages for LED control
+	if (getCurrentUI() == &controllerModeView) {
+		int32_t channelOrZone = cable.ports[MIDI_DIRECTION_INPUT_TO_DELUGE].channelToZone(channel);
+		if (controllerModeView.noteOnReceivedForMidiLearn(cable, channelOrZone, note, on ? velocity : 0)) {
+			return;
+		}
+	}
+
 	// If user assigning/learning MIDI commands, do that
 	if (currentUIMode == UI_MODE_MIDI_LEARN && on) {
 		// Checks velocity to let note-offs pass through,
