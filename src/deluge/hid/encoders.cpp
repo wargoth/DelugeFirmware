@@ -20,6 +20,7 @@
 #include "extern.h"
 #include "gui/ui/ui.h"
 #include "gui/views/automation_view.h"
+#include "gui/views/controller_mode_view.h"
 #include "gui/views/instrument_clip_view.h"
 #include "hid/buttons.h"
 #include "hid/led/pad_leds.h"
@@ -149,10 +150,16 @@ checkResult:
 				break;
 
 			case EncoderName::TEMPO:
-				if ((getCurrentUI() == &instrumentClipView
-				     || (getCurrentUI() == &automationView && automationView.inNoteEditor()))
-				    && runtimeFeatureSettings.get(RuntimeFeatureSettingType::Quantize)
-				           == RuntimeFeatureStateToggle::On) {
+				if (getCurrentUI() == &controllerModeView) {
+					// Controller Mode: send MIDI and still allow tempo changes
+					controllerModeView.tempoEncoderAction(limitedDetentPos,
+					                                      Buttons::isButtonPressed(deluge::hid::button::TEMPO_ENC),
+					                                      Buttons::isShiftButtonPressed());
+				}
+				else if ((getCurrentUI() == &instrumentClipView
+				          || (getCurrentUI() == &automationView && automationView.inNoteEditor()))
+				         && runtimeFeatureSettings.get(RuntimeFeatureSettingType::Quantize)
+				                == RuntimeFeatureStateToggle::On) {
 					instrumentClipView.tempoEncoderAction(limitedDetentPos,
 					                                      Buttons::isButtonPressed(deluge::hid::button::TEMPO_ENC),
 					                                      Buttons::isShiftButtonPressed());

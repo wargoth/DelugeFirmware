@@ -1,6 +1,7 @@
 #include "../menu_item/randomizer/midi_cv/note_probability.h"
 #include "gui/l10n/strings.h"
 #include "gui/menu_item/active_scales.h"
+#include "gui/menu_item/controller_mode_enter.h"
 #include "gui/menu_item/arpeggiator/arp_unpatched_param.h"
 #include "gui/menu_item/arpeggiator/chord_type.h"
 #include "gui/menu_item/arpeggiator/include_in_kit_arp.h"
@@ -988,6 +989,8 @@ flash::Status flashStatusMenu{STRING_FOR_PLAY_CURSOR};
 
 firmware::Version firmwareVersionMenu{STRING_FOR_FIRMWARE_VERSION, STRING_FOR_FIRMWARE_VER_MENU_TITLE};
 
+gui::menu_item::ControllerModeEnter controllerModeEnterMenu{STRING_FOR_CONTROLLER_MODE};
+
 battery::Level batteryLevelMenu{STRING_FOR_BATTERY_LEVEL, STRING_FOR_BATTERY_LEVEL_MENU_TITLE};
 
 runtime_feature::Settings runtimeFeatureSettingsMenu{STRING_FOR_COMMUNITY_FTS, STRING_FOR_COMMUNITY_FTS_MENU_TITLE};
@@ -1700,6 +1703,7 @@ Submenu settingsRootMenu{
         &flashStatusMenu,
         &recordSubmenu,
         &runtimeFeatureSettingsMenu,
+        &controllerModeEnterMenu,
         &batteryLevelMenu,
         &firmwareVersionMenu,
     },

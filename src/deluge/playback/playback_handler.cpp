@@ -26,6 +26,7 @@
 #include "gui/ui_timer_manager.h"
 #include "gui/views/arranger_view.h"
 #include "gui/views/automation_view.h"
+#include "gui/views/controller_mode_view.h"
 #include "gui/views/instrument_clip_view.h"
 #include "gui/views/performance_view.h"
 #include "gui/views/session_view.h"
@@ -2854,6 +2855,14 @@ bool PlaybackHandler::offerNoteToLearnedThings(MIDICable& cable, bool on, int32_
 
 void PlaybackHandler::noteMessageReceived(MIDICable& cable, bool on, int32_t channel, int32_t note, int32_t velocity,
                                           bool* doingMidiThru) {
+	// Controller Mode gets Note On/Off messages for LED control
+	if (getCurrentUI() == &controllerModeView) {
+		int32_t channelOrZone = cable.ports[MIDI_DIRECTION_INPUT_TO_DELUGE].channelToZone(channel);
+		if (controllerModeView.noteOnReceivedForMidiLearn(cable, channelOrZone, note, on ? velocity : 0)) {
+			return;
+		}
+	}
+
 	// If user assigning/learning MIDI commands, do that
 	if (currentUIMode == UI_MODE_MIDI_LEARN && on) {
 		// Checks velocity to let note-offs pass through,
@@ -3027,6 +3036,12 @@ void PlaybackHandler::midiCCReceived(MIDICable& cable, uint8_t channel, uint8_t 
 		// If the SoundEditor is the active UI, give it first dibs on the message
 		if (getCurrentUI() == &soundEditor) {
 			if (soundEditor.midiCCReceived(cable, channelOrZone, ccNumber, value)) {
+				return;
+			}
+		}
+		// Controller Mode gets CC messages for LED/encoder control
+		else if (getCurrentUI() == &controllerModeView) {
+			if (controllerModeView.ccReceivedForMidiLearn(cable, channelOrZone, ccNumber, value)) {
 				return;
 			}
 		}
