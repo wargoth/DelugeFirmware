@@ -154,6 +154,10 @@ void ControllerModeView::updateDisplay() {
 //==============================================================================
 
 ActionResult ControllerModeView::padAction(int32_t x, int32_t y, int32_t velocity) {
+	// NOTE: Sidebar pads (x=16, the mute/audition column) are not currently supported
+	// The 16x8 main grid uses all 128 MIDI notes (0-127), leaving no room for sidebar
+	// Future enhancement: Use MIDI channel 2 for sidebar pads, or implement via SysEx
+
 	if (velocity > 0) {
 		// Pad pressed - Deluge doesn't have velocity sensing, send fixed velocity
 		padPressed_[x][y] = true;
@@ -209,6 +213,17 @@ void ControllerModeView::selectEncoderAction(int8_t offset) {
 	sendEncoderCC(config_.encoderBaseCC + 10, value); // CC +10 for select encoder
 }
 
+void ControllerModeView::tempoEncoderAction(int8_t offset, bool shiftButtonActive) {
+	// Send tempo encoder as CC (relative)
+	// CC 73 for tempo encoder (mod encoder 2 position)
+	int32_t value = 64 + offset;
+	value = std::max(0_i32, std::min(127_i32, value));
+	sendEncoderCC(73, value); // CC 73 for tempo encoder
+
+	// Still allow tempo to change in firmware
+	RootUI::tempoEncoderAction(offset, shiftButtonActive);
+}
+
 void ControllerModeView::modEncoderAction(int32_t whichModEncoder, int32_t offset) {
 	// Send gold knobs as CC (relative or absolute depending on remote script preference)
 	// Using relative encoding by default
@@ -222,9 +237,10 @@ void ControllerModeView::modEncoderButtonAction(uint8_t whichModEncoder, bool on
 		return;
 	}
 
-	// Gold knob buttons send MIDI notes (button base + encoder number)
-	int32_t note = config_.buttonBaseNote + 20 + whichModEncoder; // Offset for encoder buttons
-	if (note >= 0 && note <= 127) {
+	// Gold knob buttons (pushing the gold encoder) send MIDI notes 84-91
+	// 8 gold knobs -> notes 84-91 (placed before mod buttons at 92-99)
+	int32_t note = 84 + whichModEncoder;
+	if (note >= 0 && note <= 127 && whichModEncoder < 8) {
 		MIDIMessage msg = on ? MIDIMessage::noteOn(config_.midiChannel, note, 127)
 		                     : MIDIMessage::noteOff(config_.midiChannel, note, 0);
 		activeCable_->sendMessage(msg);
@@ -236,9 +252,11 @@ void ControllerModeView::modButtonAction(uint8_t whichButton, bool on) {
 		return;
 	}
 
-	// Mod matrix buttons send MIDI notes
-	int32_t note = config_.buttonBaseNote + 30 + whichButton; // Offset for mod buttons
-	if (note >= 0 && note <= 127) {
+	// Mod matrix buttons (8 buttons next to gold knobs) send MIDI notes
+	// Use notes 92-99 to avoid exceeding MIDI note range (max 127)
+	// These are the "effect buttons" - undo/redo/delay/reverb/etc
+	int32_t note = 92 + whichButton; // Notes 92-99 for mod buttons 0-7
+	if (note >= 0 && note <= 127 && whichButton < 8) {
 		MIDIMessage msg = on ? MIDIMessage::noteOn(config_.midiChannel, note, 127)
 		                     : MIDIMessage::noteOff(config_.midiChannel, note, 0);
 		activeCable_->sendMessage(msg);
@@ -555,8 +573,8 @@ int32_t ControllerModeView::buttonToMidiNote(deluge::hid::Button button) const {
 	case X_ENC: offset = 21; break;         // Horizontal encoder button
 	case Y_ENC: offset = 22; break;         // Vertical encoder button
 	case TEMPO_ENC: offset = 23; break;     // Tempo encoder button
-	case MOD_ENCODER_0: offset = 24; break; // Gold knob 0 button
-	case MOD_ENCODER_1: offset = 25; break; // Gold knob 1 button
+	// Note: MOD_ENCODER buttons (gold knob push) are handled by modEncoderButtonAction() -> notes 120-127
+	// Note: MOD buttons (effect buttons) are handled by modButtonAction() -> notes 92-99
 	default: return -1;
 	}
 
@@ -567,7 +585,7 @@ deluge::hid::Button ControllerModeView::midiNoteToButton(int32_t note) const {
 	// Reverse mapping from MIDI note to button
 	// Used for LED control
 	int32_t offset = note - config_.buttonBaseNote;
-	if (offset < 0 || offset > 25) {
+	if (offset < 0 || offset > 23) {
 		return static_cast<deluge::hid::Button>(-1);
 	}
 
@@ -578,8 +596,7 @@ deluge::hid::Button ControllerModeView::midiNoteToButton(int32_t note) const {
 	    LOAD, SAVE, KEYBOARD, KIT,
 	    SYNTH, MIDI, CV, CLIP_VIEW,
 	    SESSION_VIEW, AFFECT_ENTIRE, SHIFT, SELECT_ENC,
-	    TRIPLETS, X_ENC, Y_ENC, TEMPO_ENC,
-	    MOD_ENCODER_0, MOD_ENCODER_1
+	    TRIPLETS, X_ENC, Y_ENC, TEMPO_ENC
 	};
 
 	return buttons[offset];

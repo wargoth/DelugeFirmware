@@ -50,8 +50,27 @@ COLORS = {
     'DIM_WHITE': 64,
 }
 
-# Button mapping (matching controller_mode_view.cpp buttonToMidiNote)
+# Button mapping (matching controller_mode_view.cpp)
 BUTTON_NAMES = {
+    # Gold knob encoder buttons (push gold encoders) - notes 84-91
+    84: 'GOLD_ENCODER_0',
+    85: 'GOLD_ENCODER_1',
+    86: 'GOLD_ENCODER_2',
+    87: 'GOLD_ENCODER_3',
+    88: 'GOLD_ENCODER_4',
+    89: 'GOLD_ENCODER_5',
+    90: 'GOLD_ENCODER_6',
+    91: 'GOLD_ENCODER_7',
+    # Mod buttons (effect buttons next to gold knobs) - notes 92-99
+    92: 'EFFECT_BUTTON_0',
+    93: 'EFFECT_BUTTON_1',
+    94: 'EFFECT_BUTTON_2',
+    95: 'EFFECT_BUTTON_3',
+    96: 'EFFECT_BUTTON_4',
+    97: 'EFFECT_BUTTON_5',
+    98: 'EFFECT_BUTTON_6',
+    99: 'EFFECT_BUTTON_7',
+    # Main buttons - notes 100-123
     100: 'PLAY',
     101: 'RECORD',
     102: 'TAP_TEMPO',
@@ -76,8 +95,6 @@ BUTTON_NAMES = {
     121: 'X_ENC',           # Horizontal encoder button
     122: 'Y_ENC',           # Vertical encoder button
     123: 'TEMPO_ENC',       # Tempo encoder button
-    124: 'MOD_ENCODER_0',   # Gold knob 0 button
-    125: 'MOD_ENCODER_1',   # Gold knob 1 button
 }
 
 # Encoder mapping
