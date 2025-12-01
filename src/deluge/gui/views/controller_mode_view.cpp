@@ -21,6 +21,7 @@
 #include "gui/views/session_view.h"
 #include "hid/display/display.h"
 #include "hid/button.h"
+#include "hid/buttons.h"
 #include "io/midi/midi_engine.h"
 #include "io/midi/midi_device.h"
 #include "io/midi/midi_device_manager.h"
@@ -168,7 +169,7 @@ ActionResult ControllerModeView::padAction(int32_t x, int32_t y, int32_t velocit
 
 ActionResult ControllerModeView::buttonAction(deluge::hid::Button b, bool on, bool inCardRoutine) {
 	// Special case: SHIFT+BACK exits controller mode
-	if (b == deluge::hid::Button::BACK && on && Buttons::isShiftButtonPressed()) {
+	if (b == deluge::hid::Button::BACK && on && isShiftButtonPressed()) {
 		display->displayPopup(deluge::l10n::get(deluge::l10n::String::STRING_FOR_EXITING_CONTROLLER_MODE));
 		changeRootUI(&sessionView);
 		return ActionResult::DEALT_WITH;
@@ -247,7 +248,7 @@ void ControllerModeView::sendPadAftertouch(int32_t x, int32_t y, int32_t pressur
 	int32_t note = padToMidiNote(x, y);
 	if (note >= 0 && note <= 127) {
 		// Send polyphonic aftertouch
-		midiEngine.sendPolyAftertouch(MIDISource::INTERNAL, config_.midiChannel + 1, note, pressure);
+		midiEngine.sendPolyphonicAftertouch(MIDISource::INTERNAL, config_.midiChannel + 1, pressure, note, 0);
 	}
 }
 
