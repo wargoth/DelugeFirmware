@@ -26,6 +26,7 @@
 #include "gui/ui_timer_manager.h"
 #include "gui/views/arranger_view.h"
 #include "gui/views/automation_view.h"
+#include "gui/views/controller_mode_view.h"
 #include "gui/views/instrument_clip_view.h"
 #include "gui/views/performance_view.h"
 #include "gui/views/session_view.h"
@@ -3027,6 +3028,12 @@ void PlaybackHandler::midiCCReceived(MIDICable& cable, uint8_t channel, uint8_t 
 		// If the SoundEditor is the active UI, give it first dibs on the message
 		if (getCurrentUI() == &soundEditor) {
 			if (soundEditor.midiCCReceived(cable, channelOrZone, ccNumber, value)) {
+				return;
+			}
+		}
+		// Controller Mode gets CC messages for LED/encoder control
+		else if (getCurrentUI() == &controllerModeView) {
+			if (controllerModeView.ccReceivedForMidiLearn(cable, channelOrZone, ccNumber, value)) {
 				return;
 			}
 		}

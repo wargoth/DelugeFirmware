@@ -78,7 +78,6 @@ public:
 	// UI lifecycle
 	bool opened() override;
 	void focusRegained() override;
-	bool canSeeViewUnderneath() override { return false; }
 	UIType getUIType() override { return UIType::CONTROLLER_MODE; }
 
 	// Rendering
@@ -101,7 +100,7 @@ public:
 
 	// MIDI input handling - for LED/display control
 	bool noteOnReceivedForMidiLearn(MIDICable& fromCable, int32_t channel, int32_t note, int32_t velocity) override;
-	bool ccReceivedForMidiLearn(MIDICable& fromCable, int32_t channel, int32_t cc, int32_t value) override;
+	bool ccReceivedForMidiLearn(MIDICable& fromCable, int32_t channel, int32_t cc, int32_t value);
 	void handleMidiNoteForLED(int32_t channel, int32_t note, int32_t velocity);
 	void handleMidiCCForControl(int32_t channel, int32_t cc, int32_t value);
 	void handleMidiSysexForDisplay(uint8_t* data, int32_t len);
