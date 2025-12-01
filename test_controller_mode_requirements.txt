@@ -1,0 +1,3 @@
+# Requirements for Controller Mode test script
+mido>=1.2.10
+python-rtmidi>=1.4.9
