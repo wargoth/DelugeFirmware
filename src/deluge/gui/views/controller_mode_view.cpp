@@ -170,8 +170,10 @@ ActionResult ControllerModeView::padAction(int32_t x, int32_t y, int32_t velocit
 }
 
 ActionResult ControllerModeView::buttonAction(deluge::hid::Button b, bool on, bool inCardRoutine) {
+	using namespace deluge::hid::button;
+
 	// Special case: SHIFT+BACK exits controller mode
-	if (b == deluge::hid::Button::BACK && on && Buttons::isShiftButtonPressed()) {
+	if (b == BACK && on && Buttons::isShiftButtonPressed()) {
 		display->displayPopup(deluge::l10n::get(deluge::l10n::String::STRING_FOR_EXITING_CONTROLLER_MODE));
 		changeRootUI(&sessionView);
 		return ActionResult::DEALT_WITH;

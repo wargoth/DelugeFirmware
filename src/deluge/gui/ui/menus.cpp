@@ -1,6 +1,7 @@
 #include "../menu_item/randomizer/midi_cv/note_probability.h"
 #include "gui/l10n/strings.h"
 #include "gui/menu_item/active_scales.h"
+#include "gui/menu_item/controller_mode_enter.h"
 #include "gui/menu_item/arpeggiator/arp_unpatched_param.h"
 #include "gui/menu_item/arpeggiator/chord_type.h"
 #include "gui/menu_item/arpeggiator/include_in_kit_arp.h"
