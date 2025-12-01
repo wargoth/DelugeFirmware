@@ -94,7 +94,7 @@ public:
 	ActionResult horizontalEncoderAction(int32_t offset) override;
 	ActionResult verticalEncoderAction(int32_t offset, bool inCardRoutine) override;
 	void selectEncoderAction(int8_t offset) override;
-	void tempoEncoderAction(int8_t offset, bool shiftButtonActive) override;
+	void tempoEncoderAction(int8_t offset, bool encoderButtonPressed, bool shiftButtonPressed);
 	void modEncoderAction(int32_t whichModEncoder, int32_t offset) override;
 	void modEncoderButtonAction(uint8_t whichModEncoder, bool on) override;
 	void modButtonAction(uint8_t whichButton, bool on) override;

@@ -213,15 +213,15 @@ void ControllerModeView::selectEncoderAction(int8_t offset) {
 	sendEncoderCC(config_.encoderBaseCC + 10, value); // CC +10 for select encoder
 }
 
-void ControllerModeView::tempoEncoderAction(int8_t offset, bool shiftButtonActive) {
+void ControllerModeView::tempoEncoderAction(int8_t offset, bool encoderButtonPressed, bool shiftButtonPressed) {
 	// Send tempo encoder as CC (relative)
 	// CC 73 for tempo encoder (mod encoder 2 position)
 	int32_t value = 64 + offset;
 	value = std::max(0_i32, std::min(127_i32, value));
 	sendEncoderCC(73, value); // CC 73 for tempo encoder
 
-	// Still allow tempo to change in firmware
-	RootUI::tempoEncoderAction(offset, shiftButtonActive);
+	// Still allow tempo to change in firmware via PlaybackHandler
+	playbackHandler.tempoEncoderAction(offset, encoderButtonPressed, shiftButtonPressed);
 }
 
 void ControllerModeView::modEncoderAction(int32_t whichModEncoder, int32_t offset) {
