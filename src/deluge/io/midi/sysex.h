@@ -48,13 +48,14 @@ const uint8_t SYSEX_UNIVERSAL_IDENTITY = 0x06;
 const uint8_t SYSEX_END = 0xF7;
 
 enum SysexCommands : uint8_t {
-	Ping,       // reply with pong
-	Popup,      // display info in popup
-	HID,        // HID access
-	Debug,      // Debugging
-	Json,       // Json Request
-	JsonReply,  // Json Response
-	Pong = 0x7F // Pong reply
+	Ping,           // reply with pong
+	Popup,          // display info in popup
+	HID,            // HID access
+	Debug,          // Debugging
+	Json,           // Json Request
+	JsonReply,      // Json Response
+	ControllerMode, // Controller mode LED/display control
+	Pong = 0x7F     // Pong reply
 };
 
 } // namespace SysEx

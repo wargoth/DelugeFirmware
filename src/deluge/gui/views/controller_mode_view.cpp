@@ -16,29 +16,26 @@
  */
 
 #include "controller_mode_view.h"
-#include "gui/ui_timer_manager.h"
+#include "gui/l10n/l10n.h"
 #include "gui/ui/ui.h"
+#include "gui/ui_timer_manager.h"
 #include "gui/views/session_view.h"
-#include "hid/display/display.h"
 #include "hid/button.h"
 #include "hid/buttons.h"
+#include "hid/display/display.h"
 #include "hid/led/indicator_leds.h"
-#include "io/midi/midi_engine.h"
 #include "io/midi/midi_device.h"
 #include "io/midi/midi_device_manager.h"
-#include "model/midi/message.h"
-#include "gui/l10n/l10n.h"
+#include "io/midi/midi_engine.h"
+#include "io/midi/sysex.h"
 #include "memory/general_memory_allocator.h"
-#include <string.h>
+#include "model/midi/message.h"
 #include <algorithm>
+#include <string.h>
 
 ControllerModeView controllerModeView{};
 
-// MIDI SysEx manufacturer ID for Deluge
-constexpr uint8_t SYSEX_MANUFACTURER_ID[] = {0x00, 0x21, 0x7D}; // Example ID (Synthstrom)
-constexpr uint8_t SYSEX_DEVICE_ID = 0x01; // Deluge device ID
-
-// SysEx command types
+// SysEx command types for controller mode
 enum class SysExCommand : uint8_t {
 	DEVICE_INQUIRY = 0x01,
 	SET_DISPLAY_TEXT = 0x10,
@@ -46,6 +43,10 @@ enum class SysExCommand : uint8_t {
 	SET_OLED_PIXELS = 0x12,
 	SET_LED_COLOR = 0x20,
 	SET_ALL_LEDS = 0x21,
+	SIDEBAR_PAD_EVENT = 0x30,
+	SIDEBAR_LED_CONTROL = 0x31,
+	BUTTON_EVENT = 0x40,       // Button press/release
+	BUTTON_LED_CONTROL = 0x41, // Button LED control
 };
 
 ControllerModeView::ControllerModeView() {
@@ -54,13 +55,15 @@ ControllerModeView::ControllerModeView() {
 
 	// Clear all state
 	memset(padColors_, 0, sizeof(padColors_));
+	memset(sidebarColors_, 0, sizeof(sidebarColors_));
 	memset(buttonLEDStates_, 0, sizeof(buttonLEDStates_));
 	memset(encoderLEDStates_, 0, sizeof(encoderLEDStates_));
 	memset(padPressed_, 0, sizeof(padPressed_));
 	memset(displayText_, 0, sizeof(displayText_));
 	memset(displaySegments_, 0, sizeof(displaySegments_));
 
-	strcpy(displayText_, "CONTROLLER MODE");
+	// Leave display empty so SysEx feedback works immediately
+	// strcpy(displayText_, "CONTROLLER MODE");
 }
 
 bool ControllerModeView::opened() {
@@ -95,8 +98,8 @@ void ControllerModeView::graphicsRoutine() {
 }
 
 bool ControllerModeView::renderMainPads(uint32_t whichRows, RGB image[][kDisplayWidth + kSideBarWidth],
-                                         uint8_t occupancyMask[][kDisplayWidth + kSideBarWidth],
-                                         bool drawUndefinedArea) {
+                                        uint8_t occupancyMask[][kDisplayWidth + kSideBarWidth],
+                                        bool drawUndefinedArea) {
 	if (!image) {
 		return true; // Opaque
 	}
@@ -122,16 +125,19 @@ bool ControllerModeView::renderMainPads(uint32_t whichRows, RGB image[][kDisplay
 }
 
 bool ControllerModeView::renderSidebar(uint32_t whichRows, RGB image[][kDisplayWidth + kSideBarWidth],
-                                        uint8_t occupancyMask[][kDisplayWidth + kSideBarWidth]) {
+                                       uint8_t occupancyMask[][kDisplayWidth + kSideBarWidth]) {
 	if (!image) {
 		return true;
 	}
 
-	// Sidebar could show button states - controlled by remote script
+	// Sidebar LEDs controlled by remote script via SysEx (2 columns)
 	for (int32_t y = 0; y < kDisplayHeight; y++) {
-		// Remote script controls sidebar LEDs too
-		image[y][kDisplayWidth] = {10, 10, 10}; // Dim by default
-		occupancyMask[y][kDisplayWidth] = 64;
+		for (int32_t sidebarCol = 0; sidebarCol < kSideBarWidth; sidebarCol++) {
+			int32_t x = kDisplayWidth + sidebarCol;
+			// Use colors set via SysEx sidebar LED control
+			image[y][x] = sidebarColors_[sidebarCol][y];
+			occupancyMask[y][x] = 255; // Full occupancy for full brightness
+		}
 	}
 
 	return true;
@@ -154,18 +160,27 @@ void ControllerModeView::updateDisplay() {
 //==============================================================================
 
 ActionResult ControllerModeView::padAction(int32_t x, int32_t y, int32_t velocity) {
-	// NOTE: Sidebar pads (x=16, the mute/audition column) are not currently supported
-	// The 16x8 main grid uses all 128 MIDI notes (0-127), leaving no room for sidebar
-	// Future enhancement: Use MIDI channel 2 for sidebar pads, or implement via SysEx
+	// Support both main grid (16x8) and sidebar (2 columns: x=16, x=17)
+	// Main grid: x=0-15 uses standard Note On/Off
+	// Sidebar: x=16-17 use SysEx for press/release to avoid MIDI note conflicts
+
+	// Input validation
+	if (x < 0 || x >= kDisplayWidth + kSideBarWidth || y < 0 || y >= kDisplayHeight) {
+		return ActionResult::NOT_DEALT_WITH;
+	}
 
 	if (velocity > 0) {
-		// Pad pressed - Deluge doesn't have velocity sensing, send fixed velocity
-		padPressed_[x][y] = true;
+		// Pad pressed
+		if (x < kDisplayWidth) {
+			padPressed_[x][y] = true;
+		}
 		sendPadNoteOn(x, y);
 	}
 	else {
 		// Pad released
-		padPressed_[x][y] = false;
+		if (x < kDisplayWidth) {
+			padPressed_[x][y] = false;
+		}
 		sendPadNoteOff(x, y);
 	}
 
@@ -237,13 +252,10 @@ void ControllerModeView::modEncoderButtonAction(uint8_t whichModEncoder, bool on
 		return;
 	}
 
-	// Gold knob buttons (pushing the gold encoder) send MIDI notes 84-91
-	// 8 gold knobs -> notes 84-91 (placed before mod buttons at 92-99)
-	int32_t note = 84 + whichModEncoder;
-	if (note >= 0 && note <= 127 && whichModEncoder < 8) {
-		MIDIMessage msg = on ? MIDIMessage::noteOn(config_.midiChannel, note, 127)
-		                     : MIDIMessage::noteOff(config_.midiChannel, note, 0);
-		activeCable_->sendMessage(msg);
+	// Gold knob buttons send via SysEx
+	// Button ID: 24 + encoder index
+	if (whichModEncoder < 8) {
+		sendButtonSysex(24 + whichModEncoder, on);
 	}
 }
 
@@ -252,14 +264,10 @@ void ControllerModeView::modButtonAction(uint8_t whichButton, bool on) {
 		return;
 	}
 
-	// Mod matrix buttons (8 buttons next to gold knobs) send MIDI notes
-	// Use notes 92-99 to avoid exceeding MIDI note range (max 127)
-	// These are the "effect buttons" - undo/redo/delay/reverb/etc
-	int32_t note = 92 + whichButton; // Notes 92-99 for mod buttons 0-7
-	if (note >= 0 && note <= 127 && whichButton < 8) {
-		MIDIMessage msg = on ? MIDIMessage::noteOn(config_.midiChannel, note, 127)
-		                     : MIDIMessage::noteOff(config_.midiChannel, note, 0);
-		activeCable_->sendMessage(msg);
+	// Mod matrix buttons send via SysEx
+	// Button ID: 32 + button index
+	if (whichButton < 8) {
+		sendButtonSysex(32 + whichButton, on);
 	}
 }
 
@@ -272,12 +280,21 @@ void ControllerModeView::sendPadNoteOn(int32_t x, int32_t y) {
 		return;
 	}
 
-	int32_t note = padToMidiNote(x, y);
-	if (note >= 0 && note <= 127) {
-		// Deluge doesn't have velocity sensing - send fixed velocity 127
-		MIDIMessage msg = MIDIMessage::noteOn(config_.midiChannel, note, 127);
-		activeCable_->sendMessage(msg);
+	// Sidebar pads (x=16, x=17) send via SysEx to avoid MIDI note conflicts
+	if (x >= kDisplayWidth) {
+		sendSidebarPadSysex(x, y, true); // true = pressed
+		return;
 	}
+
+	int32_t note = padToMidiNote(x, y);
+	// Input validation
+	if (note < 0 || note > 127 || config_.midiChannel < 0 || config_.midiChannel > 15) {
+		return;
+	}
+
+	// Deluge doesn't have velocity sensing - send fixed velocity 127
+	MIDIMessage msg = MIDIMessage::noteOn(config_.midiChannel, note, 127);
+	activeCable_->sendMessage(msg);
 }
 
 void ControllerModeView::sendPadNoteOff(int32_t x, int32_t y) {
@@ -285,11 +302,20 @@ void ControllerModeView::sendPadNoteOff(int32_t x, int32_t y) {
 		return;
 	}
 
-	int32_t note = padToMidiNote(x, y);
-	if (note >= 0 && note <= 127) {
-		MIDIMessage msg = MIDIMessage::noteOff(config_.midiChannel, note, 0);
-		activeCable_->sendMessage(msg);
+	// Sidebar pads (x=16, x=17) send via SysEx
+	if (x >= kDisplayWidth) {
+		sendSidebarPadSysex(x, y, false); // false = released
+		return;
 	}
+
+	int32_t note = padToMidiNote(x, y);
+	// Input validation
+	if (note < 0 || note > 127 || config_.midiChannel < 0 || config_.midiChannel > 15) {
+		return;
+	}
+
+	MIDIMessage msg = MIDIMessage::noteOff(config_.midiChannel, note, 0);
+	activeCable_->sendMessage(msg);
 }
 
 void ControllerModeView::sendButtonMidi(deluge::hid::Button button, bool on) {
@@ -297,11 +323,10 @@ void ControllerModeView::sendButtonMidi(deluge::hid::Button button, bool on) {
 		return;
 	}
 
-	int32_t note = buttonToMidiNote(button);
-	if (note >= 0) {
-		MIDIMessage msg = on ? MIDIMessage::noteOn(config_.midiChannel, note, 127)
-		                     : MIDIMessage::noteOff(config_.midiChannel, note, 0);
-		activeCable_->sendMessage(msg);
+	// Map button to ID and send via SysEx
+	int32_t buttonId = buttonToMidiNote(button);
+	if (buttonId >= 0) {
+		sendButtonSysex(buttonId, on);
 	}
 }
 
@@ -310,10 +335,14 @@ void ControllerModeView::sendEncoderCC(int32_t ccNumber, int32_t value) {
 		return;
 	}
 
-	if (ccNumber >= 0 && ccNumber <= 127) {
-		MIDIMessage msg = MIDIMessage::cc(config_.midiChannel, ccNumber, value);
-		activeCable_->sendMessage(msg);
+	// Input validation
+	if (ccNumber < 0 || ccNumber > 127 || value < 0 || value > 127 || config_.midiChannel < 0
+	    || config_.midiChannel > 15) {
+		return;
 	}
+
+	MIDIMessage msg = MIDIMessage::cc(config_.midiChannel, ccNumber, value);
+	activeCable_->sendMessage(msg);
 }
 
 //==============================================================================
@@ -321,8 +350,19 @@ void ControllerModeView::sendEncoderCC(int32_t ccNumber, int32_t value) {
 //==============================================================================
 
 bool ControllerModeView::noteOnReceivedForMidiLearn(MIDICable& fromCable, int32_t channel, int32_t note,
-                                                      int32_t velocity) {
+                                                    int32_t velocity) {
+	// Prevent MIDI loop: only accept from the same cable we're sending to
+	if (&fromCable != activeCable_) {
+		return false;
+	}
+
+	// Only accept on main channel (pads only, buttons use SysEx)
 	if (channel != config_.midiChannel) {
+		return false;
+	}
+
+	// Input validation
+	if (note < 0 || note > 127 || velocity < 0 || velocity > 127) {
 		return false;
 	}
 
@@ -331,7 +371,17 @@ bool ControllerModeView::noteOnReceivedForMidiLearn(MIDICable& fromCable, int32_
 }
 
 bool ControllerModeView::ccReceivedForMidiLearn(MIDICable& fromCable, int32_t channel, int32_t cc, int32_t value) {
+	// Prevent MIDI loop: only accept from the same cable we're sending to
+	if (&fromCable != activeCable_) {
+		return false;
+	}
+
 	if (channel != config_.midiChannel) {
+		return false;
+	}
+
+	// Input validation
+	if (cc < 0 || cc > 127 || value < 0 || value > 127) {
 		return false;
 	}
 
@@ -340,7 +390,7 @@ bool ControllerModeView::ccReceivedForMidiLearn(MIDICable& fromCable, int32_t ch
 }
 
 void ControllerModeView::handleMidiNoteForLED(int32_t channel, int32_t note, int32_t velocity) {
-	// Check if this is a pad LED command
+	// Check if this is a pad LED command (main grid only, sidebar uses SysEx)
 	int32_t x, y;
 	midiNoteToPad(note, x, y);
 
@@ -358,15 +408,51 @@ void ControllerModeView::handleMidiNoteForLED(int32_t channel, int32_t note, int
 			uint8_t r = 0, g = 0, b = 0;
 
 			// Example color palette (similar to Launchpad/Push)
-			if (velocity == 1) { r = 30; g = 30; b = 30; }      // Dim white
-			else if (velocity < 16) { r = 255; g = 0; b = 0; }   // Red
-			else if (velocity < 32) { r = 255; g = 127; b = 0; } // Orange
-			else if (velocity < 48) { r = 255; g = 255; b = 0; } // Yellow
-			else if (velocity < 64) { r = 0; g = 255; b = 0; }   // Green
-			else if (velocity < 80) { r = 0; g = 255; b = 255; } // Cyan
-			else if (velocity < 96) { r = 0; g = 0; b = 255; }   // Blue
-			else if (velocity < 112) { r = 255; g = 0; b = 255; } // Magenta
-			else { r = 255; g = 255; b = 255; }                   // White
+			if (velocity == 1) {
+				r = 30;
+				g = 30;
+				b = 30;
+			} // Dim white
+			else if (velocity < 16) {
+				r = 255;
+				g = 0;
+				b = 0;
+			} // Red
+			else if (velocity < 32) {
+				r = 255;
+				g = 127;
+				b = 0;
+			} // Orange
+			else if (velocity < 48) {
+				r = 255;
+				g = 255;
+				b = 0;
+			} // Yellow
+			else if (velocity < 64) {
+				r = 0;
+				g = 255;
+				b = 0;
+			} // Green
+			else if (velocity < 80) {
+				r = 0;
+				g = 255;
+				b = 255;
+			} // Cyan
+			else if (velocity < 96) {
+				r = 0;
+				g = 0;
+				b = 255;
+			} // Blue
+			else if (velocity < 112) {
+				r = 255;
+				g = 0;
+				b = 255;
+			} // Magenta
+			else {
+				r = 255;
+				g = 255;
+				b = 255;
+			} // White
 
 			padColors_[x][y] = {r, g, b};
 		}
@@ -392,20 +478,15 @@ void ControllerModeView::handleMidiCCForControl(int32_t channel, int32_t cc, int
 		encoderLEDStates_[encoderIndex] = value;
 		updateEncoderLEDs();
 	}
-	// Other CCs could control display brightness, etc.
 }
-
 void ControllerModeView::handleMidiSysexForDisplay(uint8_t* data, int32_t len) {
 	if (!config_.receiveDisplaySysex || len < 5) {
 		return;
 	}
 
-	// Check manufacturer ID (F0 [ID] [device] [command] ... F7)
-	if (memcmp(&data[1], SYSEX_MANUFACTURER_ID, 3) != 0) {
-		return;
-	}
-
-	if (data[4] != SYSEX_DEVICE_ID) {
+	// Check manufacturer ID (F0 [ID[0]] [ID[1]] [ID[2]] [ID[3]] [command] ... F7)
+	if (data[1] != SysEx::DELUGE_SYSEX_ID_BYTE0 || data[2] != SysEx::DELUGE_SYSEX_ID_BYTE1
+	    || data[3] != SysEx::DELUGE_SYSEX_ID_BYTE2 || data[4] != SysEx::DELUGE_SYSEX_ID_BYTE3) {
 		return;
 	}
 
@@ -445,6 +526,10 @@ void ControllerModeView::handleMidiSysexForDisplay(uint8_t* data, int32_t len) {
 		sendIdentityReply();
 		break;
 
+	case SysExCommand::SIDEBAR_LED_CONTROL:
+		processSysexSidebarLED(data, len);
+		break;
+
 	default:
 		break;
 	}
@@ -461,11 +546,21 @@ void ControllerModeView::processSysexDisplayCommand(uint8_t* data, int32_t len) 
 }
 
 void ControllerModeView::processSysex7SegCommand(uint8_t* data, int32_t len) {
-	// Set 7-segment display: F0 [ID] [device] [cmd] [seg0] [seg1] [seg2] [seg3] F7
-	if (len >= 10) {
-		memcpy(displaySegments_, &data[6], 4);
-		// Update 7-seg display hardware
+	// Set 7-segment display: F0 [ID] [device] [cmd] [text...] F7
+	// Extract text from SysEx message
+	int32_t textLen = len - 7; // Subtract header (6 bytes) and F7 (1 byte)
+
+	// Input validation
+	if (textLen <= 0 || textLen > 4) {
+		return; // 7-segment display supports max 4 characters
 	}
+
+	// Copy text and null-terminate
+	char text[5] = {0};
+	memcpy(text, &data[6], textLen);
+
+	// Display on 7-segment hardware
+	display->setText(text, false); // alignRight=false for left alignment
 }
 
 void ControllerModeView::processSysexOLEDCommand(uint8_t* data, int32_t len) {
@@ -477,18 +572,23 @@ void ControllerModeView::processSysexOLEDCommand(uint8_t* data, int32_t len) {
 void ControllerModeView::sendIdentityReply() {
 	// Send device identity so remote script knows what controller is connected
 	// Format: F0 7E [device] 06 02 [manufacturer] [family] [model] [version] F7
-	uint8_t identity[] = {
-	    0xF0, // SysEx start
-	    0x7E, // Universal non-realtime
-	    0x00, // Device ID (0 = all)
-	    0x06, // General Information
-	    0x02, // Identity Reply
-	    SYSEX_MANUFACTURER_ID[0], SYSEX_MANUFACTURER_ID[1], SYSEX_MANUFACTURER_ID[2],
-	    0x00, 0x01, // Device family (Deluge)
-	    0x00, 0x01, // Device model
-	    0x01, 0x00, 0x00, 0x00, // Software version
-	    0xF7  // SysEx end
-	};
+	uint8_t identity[] = {SysEx::SYSEX_START,
+	                      SysEx::SYSEX_UNIVERSAL_NONRT,
+	                      0x00, // Device ID (0 = all)
+	                      SysEx::SYSEX_UNIVERSAL_IDENTITY,
+	                      0x02, // Identity Reply
+	                      SysEx::DELUGE_SYSEX_ID_BYTE0,
+	                      SysEx::DELUGE_SYSEX_ID_BYTE1,
+	                      SysEx::DELUGE_SYSEX_ID_BYTE2,
+	                      0x00,
+	                      0x01, // Device family (Deluge)
+	                      0x00,
+	                      0x01, // Device model
+	                      0x01,
+	                      0x00,
+	                      0x00,
+	                      0x00, // Software version
+	                      SysEx::SYSEX_END};
 
 	// Send via active MIDI cable
 	if (activeCable_) {
@@ -549,33 +649,82 @@ int32_t ControllerModeView::buttonToMidiNote(deluge::hid::Button button) const {
 
 	// Main transport/function buttons
 	switch (button) {
-	case PLAY: offset = 0; break;
-	case RECORD: offset = 1; break;
-	case TAP_TEMPO: offset = 2; break;
-	case SYNC_SCALING: offset = 3; break;
-	case LEARN: offset = 4; break;
-	case SCALE_MODE: offset = 5; break;
-	case CROSS_SCREEN_EDIT: offset = 6; break;
-	case BACK: offset = 7; break;
-	case LOAD: offset = 8; break;
-	case SAVE: offset = 9; break;
-	case KEYBOARD: offset = 10; break;
-	case KIT: offset = 11; break;
-	case SYNTH: offset = 12; break;
-	case MIDI: offset = 13; break;
-	case CV: offset = 14; break;
-	case CLIP_VIEW: offset = 15; break;
-	case SESSION_VIEW: offset = 16; break;
-	case AFFECT_ENTIRE: offset = 17; break;
-	case SHIFT: offset = 18; break;
-	case SELECT_ENC: offset = 19; break;
-	case TRIPLETS: offset = 20; break;
-	case X_ENC: offset = 21; break;         // Horizontal encoder button
-	case Y_ENC: offset = 22; break;         // Vertical encoder button
-	case TEMPO_ENC: offset = 23; break;     // Tempo encoder button
+	case PLAY:
+		offset = 0;
+		break;
+	case RECORD:
+		offset = 1;
+		break;
+	case TAP_TEMPO:
+		offset = 2;
+		break;
+	case SYNC_SCALING:
+		offset = 3;
+		break;
+	case LEARN:
+		offset = 4;
+		break;
+	case SCALE_MODE:
+		offset = 5;
+		break;
+	case CROSS_SCREEN_EDIT:
+		offset = 6;
+		break;
+	case BACK:
+		offset = 7;
+		break;
+	case LOAD:
+		offset = 8;
+		break;
+	case SAVE:
+		offset = 9;
+		break;
+	case KEYBOARD:
+		offset = 10;
+		break;
+	case KIT:
+		offset = 11;
+		break;
+	case SYNTH:
+		offset = 12;
+		break;
+	case MIDI:
+		offset = 13;
+		break;
+	case CV:
+		offset = 14;
+		break;
+	case CLIP_VIEW:
+		offset = 15;
+		break;
+	case SESSION_VIEW:
+		offset = 16;
+		break;
+	case AFFECT_ENTIRE:
+		offset = 17;
+		break;
+	case SHIFT:
+		offset = 18;
+		break;
+	case SELECT_ENC:
+		offset = 19;
+		break;
+	case TRIPLETS:
+		offset = 20;
+		break;
+	case X_ENC:
+		offset = 21;
+		break; // Horizontal encoder button
+	case Y_ENC:
+		offset = 22;
+		break; // Vertical encoder button
+	case TEMPO_ENC:
+		offset = 23;
+		break; // Tempo encoder button
 	// Note: MOD_ENCODER buttons (gold knob push) are handled by modEncoderButtonAction() -> notes 120-127
 	// Note: MOD buttons (effect buttons) are handled by modButtonAction() -> notes 92-99
-	default: return -1;
+	default:
+		return -1;
 	}
 
 	return config_.buttonBaseNote + offset;
@@ -591,13 +740,9 @@ deluge::hid::Button ControllerModeView::midiNoteToButton(int32_t note) const {
 
 	using namespace deluge::hid::button;
 	const deluge::hid::Button buttons[] = {
-	    PLAY, RECORD, TAP_TEMPO, SYNC_SCALING,
-	    LEARN, SCALE_MODE, CROSS_SCREEN_EDIT, BACK,
-	    LOAD, SAVE, KEYBOARD, KIT,
-	    SYNTH, MIDI, CV, CLIP_VIEW,
-	    SESSION_VIEW, AFFECT_ENTIRE, SHIFT, SELECT_ENC,
-	    TRIPLETS, X_ENC, Y_ENC, TEMPO_ENC
-	};
+	    PLAY,  RECORD,     TAP_TEMPO, SYNC_SCALING, LEARN, SCALE_MODE, CROSS_SCREEN_EDIT, BACK,         LOAD,
+	    SAVE,  KEYBOARD,   KIT,       SYNTH,        MIDI,  CV,         CLIP_VIEW,         SESSION_VIEW, AFFECT_ENTIRE,
+	    SHIFT, SELECT_ENC, TRIPLETS,  X_ENC,        Y_ENC, TEMPO_ENC};
 
 	return buttons[offset];
 }
@@ -686,4 +831,69 @@ void ControllerModeView::updateEncoderLEDs() {
 		indicator_leds::setKnobIndicatorLevel(i, brightness);
 	}
 	uiNeedsRendering(this);
+}
+
+void ControllerModeView::sendButtonSysex(int32_t buttonId, bool pressed) {
+	// Button press/release via SysEx
+	// Format: F0 00 21 7D 01 40 [button_id] [state] F7
+	if (!activeCable_ || buttonId < 0 || buttonId > 127) {
+		return;
+	}
+
+	uint8_t sysex[] = {SysEx::SYSEX_START,
+	                   SysEx::DELUGE_SYSEX_ID_BYTE0,
+	                   SysEx::DELUGE_SYSEX_ID_BYTE1,
+	                   SysEx::DELUGE_SYSEX_ID_BYTE2,
+	                   SysEx::DELUGE_SYSEX_ID_BYTE3,
+	                   0x40, // BUTTON_EVENT command
+	                   static_cast<uint8_t>(buttonId),
+	                   pressed ? uint8_t(0x7F) : uint8_t(0x00),
+	                   SysEx::SYSEX_END};
+
+	activeCable_->sendSysex(sysex, sizeof(sysex));
+}
+
+void ControllerModeView::sendSidebarPadSysex(int32_t x, int32_t y, bool pressed) {
+	// Sidebar pad press/release via SysEx
+	// Format: F0 00 21 7D 01 30 [x] [y] [state] F7
+	if (!activeCable_ || x < kDisplayWidth || x >= kDisplayWidth + kSideBarWidth || y < 0 || y >= kDisplayHeight) {
+		return;
+	}
+
+	// Convert x to sidebar column index (0 or 1)
+	int32_t sidebarCol = x - kDisplayWidth;
+
+	uint8_t sysex[] = {SysEx::SYSEX_START,
+	                   SysEx::DELUGE_SYSEX_ID_BYTE0,
+	                   SysEx::DELUGE_SYSEX_ID_BYTE1,
+	                   SysEx::DELUGE_SYSEX_ID_BYTE2,
+	                   SysEx::DELUGE_SYSEX_ID_BYTE3,
+	                   0x30, // SIDEBAR_PAD_EVENT command
+	                   static_cast<uint8_t>(sidebarCol),
+	                   static_cast<uint8_t>(y),
+	                   pressed ? 0x7F : 0x00,
+	                   SysEx::SYSEX_END};
+
+	activeCable_->sendSysex(sysex, sizeof(sysex));
+}
+
+void ControllerModeView::processSysexSidebarLED(uint8_t* data, int32_t len) {
+	// Set sidebar LED color via SysEx
+	// Format: F0 00 21 7B 01 31 [x] [y] [r] [g] [b] F7
+	if (len < 11) {
+		return;
+	}
+
+	int32_t sidebarCol = data[6]; // 0 or 1 for the two sidebar columns
+	int32_t y = data[7];
+	uint8_t r = data[8];
+	uint8_t g = data[9];
+	uint8_t b = data[10];
+
+	if (sidebarCol >= 0 && sidebarCol < kSideBarWidth && y >= 0 && y < kDisplayHeight) {
+		// Scale from SysEx range (0-127) to RGB range (0-255)
+		sidebarColors_[sidebarCol][y] = {static_cast<uint8_t>((r * 255) / 127), static_cast<uint8_t>((g * 255) / 127),
+		                                 static_cast<uint8_t>((b * 255) / 127)};
+		uiNeedsRendering(this);
+	}
 }

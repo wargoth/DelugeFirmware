@@ -25,91 +25,113 @@ from collections import deque
 from datetime import datetime
 
 # Controller Mode MIDI Configuration (matching implementation)
-MIDI_CHANNEL = 0  # MIDI channel 1 (0-indexed)
+MIDI_CHANNEL = 0  # MIDI channel 1 (0-indexed) for PADS
+BUTTON_CHANNEL = 1  # MIDI channel 2 (1-indexed) for BUTTONS
 GRID_WIDTH = 16
 GRID_HEIGHT = 8
 GRID_BASE_NOTE = 0
-BUTTON_BASE_NOTE = 100
+BUTTON_BASE_NOTE = 0  # Buttons now start at 0 on channel 2
 ENCODER_BASE_CC = 71
+
+# SysEx constants (matching Deluge firmware)
+SYSEX_START = 0xF0
+SYSEX_END = 0xF7
+DELUGE_SYSEX_ID = [0x00, 0x21, 0x7B, 0x01]  # Official Synthstrom Deluge ID
+
+
+# SysEx command types
+class SysExCommand:
+    DEVICE_INQUIRY = 0x01
+    SET_DISPLAY_TEXT = 0x10
+    SET_7SEG_SEGMENTS = 0x11
+    SET_OLED_PIXELS = 0x12
+    SET_LED_COLOR = 0x20
+    SET_ALL_LEDS = 0x21
+    SIDEBAR_PAD_EVENT = 0x30
+    SIDEBAR_LED_CONTROL = 0x31
+    BUTTON_EVENT = 0x40
+    BUTTON_LED_CONTROL = 0x41
+
 
 # Color palette (velocity values for different colors)
 COLORS = {
-    'OFF': 0,
-    'RED': 5,
-    'ORANGE': 9,
-    'YELLOW': 13,
-    'GREEN': 17,
-    'CYAN': 21,
-    'BLUE': 41,
-    'PURPLE': 49,
-    'MAGENTA': 53,
-    'WHITE': 127,
-    'DIM_RED': 1,
-    'DIM_GREEN': 19,
-    'DIM_BLUE': 45,
-    'DIM_WHITE': 64,
+    "OFF": 0,
+    "RED": 5,
+    "ORANGE": 9,
+    "YELLOW": 13,
+    "GREEN": 17,
+    "CYAN": 21,
+    "BLUE": 41,
+    "PURPLE": 49,
+    "MAGENTA": 53,
+    "WHITE": 127,
+    "DIM_RED": 1,
+    "DIM_GREEN": 19,
+    "DIM_BLUE": 45,
+    "DIM_WHITE": 64,
 }
 
 # Button mapping (matching controller_mode_view.cpp)
+# ALL buttons now send on CHANNEL 2 to avoid conflicts with pads
 BUTTON_NAMES = {
-    # Gold knob encoder buttons (push gold encoders) - notes 84-91
-    84: 'GOLD_ENCODER_0',
-    85: 'GOLD_ENCODER_1',
-    86: 'GOLD_ENCODER_2',
-    87: 'GOLD_ENCODER_3',
-    88: 'GOLD_ENCODER_4',
-    89: 'GOLD_ENCODER_5',
-    90: 'GOLD_ENCODER_6',
-    91: 'GOLD_ENCODER_7',
-    # Mod buttons (effect buttons next to gold knobs) - notes 92-99
-    92: 'EFFECT_BUTTON_0',
-    93: 'EFFECT_BUTTON_1',
-    94: 'EFFECT_BUTTON_2',
-    95: 'EFFECT_BUTTON_3',
-    96: 'EFFECT_BUTTON_4',
-    97: 'EFFECT_BUTTON_5',
-    98: 'EFFECT_BUTTON_6',
-    99: 'EFFECT_BUTTON_7',
-    # Main buttons - notes 100-123
-    100: 'PLAY',
-    101: 'RECORD',
-    102: 'TAP_TEMPO',
-    103: 'SYNC_SCALING',
-    104: 'LEARN',
-    105: 'SCALE_MODE',
-    106: 'CROSS_SCREEN_EDIT',
-    107: 'BACK',
-    108: 'LOAD',
-    109: 'SAVE',
-    110: 'KEYBOARD',
-    111: 'KIT',
-    112: 'SYNTH',
-    113: 'MIDI',
-    114: 'CV',
-    115: 'CLIP_VIEW',
-    116: 'SESSION_VIEW',
-    117: 'AFFECT_ENTIRE',
-    118: 'SHIFT',
-    119: 'SELECT_ENC',
-    120: 'TRIPLETS',
-    121: 'X_ENC',           # Horizontal encoder button
-    122: 'Y_ENC',           # Vertical encoder button
-    123: 'TEMPO_ENC',       # Tempo encoder button
+    # Main buttons - notes 0-23 on channel 2
+    0: "PLAY",
+    1: "RECORD",
+    2: "TAP_TEMPO",
+    3: "SYNC_SCALING",
+    4: "LEARN",
+    5: "SCALE_MODE",
+    6: "CROSS_SCREEN_EDIT",
+    7: "BACK",
+    8: "LOAD",
+    9: "SAVE",
+    10: "KEYBOARD",
+    11: "KIT",
+    12: "SYNTH",
+    13: "MIDI",
+    14: "CV",
+    15: "CLIP_VIEW",
+    16: "SESSION_VIEW",
+    17: "AFFECT_ENTIRE",
+    18: "SHIFT",
+    19: "SELECT_ENC",
+    20: "TRIPLETS",
+    21: "X_ENC",  # Horizontal encoder button
+    22: "Y_ENC",  # Vertical encoder button
+    23: "TEMPO_ENC",  # Tempo encoder button
+    # Gold encoder buttons - notes 24-31 on channel 2
+    24: "GOLD_ENCODER_0",
+    25: "GOLD_ENCODER_1",
+    26: "GOLD_ENCODER_2",
+    27: "GOLD_ENCODER_3",
+    28: "GOLD_ENCODER_4",
+    29: "GOLD_ENCODER_5",
+    30: "GOLD_ENCODER_6",
+    31: "GOLD_ENCODER_7",
+    # Mod buttons - notes 32-39 on channel 2
+    32: "EFFECT_BUTTON_0",
+    33: "EFFECT_BUTTON_1",
+    34: "EFFECT_BUTTON_2",
+    35: "EFFECT_BUTTON_3",
+    36: "EFFECT_BUTTON_4",
+    37: "EFFECT_BUTTON_5",
+    38: "EFFECT_BUTTON_6",
+    39: "EFFECT_BUTTON_7",
 }
 
 # Encoder mapping
 ENCODER_NAMES = {
-    71: 'MOD_ENCODER_0',
-    72: 'MOD_ENCODER_1',
-    73: 'TEMPO_ENCODER',
-    74: 'ENCODER_3',
-    75: 'ENCODER_4',
-    76: 'ENCODER_5',
-    77: 'ENCODER_6',
-    78: 'ENCODER_7',
-    79: 'HORIZONTAL_ENCODER',
-    80: 'VERTICAL_ENCODER',
-    81: 'SELECT_ENCODER',
+    71: "MOD_ENCODER_0",
+    72: "MOD_ENCODER_1",
+    73: "TEMPO_ENCODER",
+    74: "ENCODER_3",
+    75: "ENCODER_4",
+    76: "ENCODER_5",
+    77: "ENCODER_6",
+    78: "ENCODER_7",
+    79: "HORIZONTAL_ENCODER",
+    80: "VERTICAL_ENCODER",
+    81: "SELECT_ENCODER",
 }
 
 
@@ -146,17 +168,17 @@ class ControllerModeTest:
         deluge_out = None
 
         for name in mido.get_input_names():
-            if 'deluge' in name.lower() or 'synthstrom' in name.lower():
+            if "deluge" in name.lower() or "synthstrom" in name.lower():
                 deluge_in = name
                 break
 
         for name in mido.get_output_names():
-            if 'deluge' in name.lower() or 'synthstrom' in name.lower():
+            if "deluge" in name.lower() or "synthstrom" in name.lower():
                 deluge_out = name
                 break
 
         if deluge_in and deluge_out:
-            print(f"\nAuto-detected Deluge:")
+            print("\nAuto-detected Deluge:")
             print(f"  Input: {deluge_in}")
             print(f"  Output: {deluge_out}")
             try:
@@ -194,43 +216,109 @@ class ControllerModeTest:
             return x, y
         return None, None
 
+    def _build_sysex(self, command, *data_bytes):
+        """Helper to build SysEx messages with proper framing"""
+        return DELUGE_SYSEX_ID + [command] + list(data_bytes)
+
+    def _color_name_to_rgb(self, color_name):
+        """Convert color name to RGB tuple (0-127 range for SysEx)"""
+        color = COLORS.get(color_name, COLORS["WHITE"])
+        # Map velocity value to RGB (SysEx uses 0-127)
+        if color == 0:
+            return (0, 0, 0)
+        elif color < 16:
+            return (127, 0, 0)  # Red
+        elif color < 32:
+            return (127, 64, 0)  # Orange
+        elif color < 48:
+            return (127, 127, 0)  # Yellow
+        elif color < 64:
+            return (0, 127, 0)  # Green
+        elif color < 80:
+            return (0, 127, 127)  # Cyan
+        elif color < 96:
+            return (0, 0, 127)  # Blue
+        else:
+            return (127, 127, 127)  # White
+
     def set_pad_color(self, x, y, color_name):
-        """Set a pad's color"""
-        if 0 <= x < GRID_WIDTH and 0 <= y < GRID_HEIGHT:
+        """Set a pad's color (main grid uses MIDI notes, sidebar uses SysEx)"""
+        if x >= GRID_WIDTH:  # Sidebar (x=16 or x=17)
+            sidebar_col = x - GRID_WIDTH  # 0 or 1
+            if 0 <= sidebar_col < 2 and 0 <= y < GRID_HEIGHT:
+                r, g, b = self._color_name_to_rgb(color_name)
+                sysex_data = self._build_sysex(
+                    SysExCommand.SIDEBAR_LED_CONTROL, sidebar_col, y, r, g, b
+                )
+                msg = mido.Message("sysex", data=sysex_data)
+                self.outport.send(msg)
+        elif 0 <= x < GRID_WIDTH and 0 <= y < GRID_HEIGHT:  # Main grid
             note = self.pad_to_note(x, y)
-            velocity = COLORS.get(color_name, COLORS['WHITE'])
-            msg = mido.Message('note_on', channel=MIDI_CHANNEL, note=note, velocity=velocity)
+            velocity = COLORS.get(color_name, COLORS["WHITE"])
+            msg = mido.Message(
+                "note_on", channel=MIDI_CHANNEL, note=note, velocity=velocity
+            )
             self.outport.send(msg)
 
     def set_pad_off(self, x, y):
-        """Turn off a pad"""
-        if 0 <= x < GRID_WIDTH and 0 <= y < GRID_HEIGHT:
+        """Turn off a pad (main grid uses MIDI notes, sidebar uses SysEx)"""
+        if x >= GRID_WIDTH:  # Sidebar (x=16 or x=17)
+            sidebar_col = x - GRID_WIDTH  # 0 or 1
+            if 0 <= sidebar_col < 2 and 0 <= y < GRID_HEIGHT:
+                sysex_data = self._build_sysex(
+                    SysExCommand.SIDEBAR_LED_CONTROL, sidebar_col, y, 0, 0, 0
+                )
+                msg = mido.Message("sysex", data=sysex_data)
+                self.outport.send(msg)
+        elif 0 <= x < GRID_WIDTH and 0 <= y < GRID_HEIGHT:  # Main grid
             note = self.pad_to_note(x, y)
-            msg = mido.Message('note_off', channel=MIDI_CHANNEL, note=note, velocity=0)
+            msg = mido.Message("note_off", channel=MIDI_CHANNEL, note=note, velocity=0)
             self.outport.send(msg)
 
     def set_button_led(self, button_note, on):
         """Set a button LED state"""
         if on:
-            msg = mido.Message('note_on', channel=MIDI_CHANNEL, note=button_note, velocity=127)
+            msg = mido.Message(
+                "note_on", channel=BUTTON_CHANNEL, note=button_note, velocity=127
+            )
         else:
-            msg = mido.Message('note_off', channel=MIDI_CHANNEL, note=button_note, velocity=0)
+            msg = mido.Message(
+                "note_off", channel=BUTTON_CHANNEL, note=button_note, velocity=0
+            )
+        self.outport.send(msg)
+
+    def send_7seg_text(self, text):
+        """Send text to Deluge 7-segment display via SysEx"""
+        sysex_data = self._build_sysex(SysExCommand.SET_7SEG_SEGMENTS)
+        sysex_data.extend([ord(c) for c in text[:4]])  # Max 4 chars
+        msg = mido.Message("sysex", data=sysex_data)
         self.outport.send(msg)
 
     def clear_all_pads(self):
-        """Turn off all pad LEDs"""
+        """Turn off all pad LEDs (including both sidebar columns)"""
         for y in range(GRID_HEIGHT):
-            for x in range(GRID_WIDTH):
+            for x in range(
+                GRID_WIDTH + 2
+            ):  # +2 to include both sidebar columns (x=16, x=17)
                 self.set_pad_off(x, y)
 
     def animation_rainbow_wave(self, duration=5.0):
-        """Rainbow wave animation across the grid"""
+        """Rainbow wave animation across the grid including both sidebar columns"""
         self.log_event("ANIMATION", "Starting rainbow wave")
-        colors = ['RED', 'ORANGE', 'YELLOW', 'GREEN', 'CYAN', 'BLUE', 'PURPLE', 'MAGENTA']
+        colors = [
+            "RED",
+            "ORANGE",
+            "YELLOW",
+            "GREEN",
+            "CYAN",
+            "BLUE",
+            "PURPLE",
+            "MAGENTA",
+        ]
         start_time = time.time()
 
         while time.time() - start_time < duration and self.running:
-            for x in range(GRID_WIDTH):
+            for x in range(GRID_WIDTH + 2):  # +2 to include both sidebar columns
                 color_idx = (x + int((time.time() - start_time) * 4)) % len(colors)
                 color = colors[color_idx]
                 for y in range(GRID_HEIGHT):
@@ -238,14 +326,19 @@ class ControllerModeTest:
                 time.sleep(0.01)
 
     def animation_spiral(self, duration=3.0):
-        """Spiral animation from center outward"""
+        """Spiral animation from center outward (including both sidebar columns)"""
         self.log_event("ANIMATION", "Starting spiral")
         self.clear_all_pads()
 
-        center_x, center_y = GRID_WIDTH // 2, GRID_HEIGHT // 2
-        colors = ['BLUE', 'CYAN', 'GREEN', 'YELLOW', 'ORANGE', 'RED', 'MAGENTA']
+        center_x, center_y = (
+            (GRID_WIDTH + 2) // 2,
+            GRID_HEIGHT // 2,
+        )  # Include both sidebar columns
+        colors = ["BLUE", "CYAN", "GREEN", "YELLOW", "ORANGE", "RED", "MAGENTA"]
 
-        max_dist = max(center_x, center_y, GRID_WIDTH - center_x, GRID_HEIGHT - center_y)
+        max_dist = max(
+            center_x, center_y, GRID_WIDTH + 2 - center_x, GRID_HEIGHT - center_y
+        )
 
         for dist in range(max_dist + 1):
             if not self.running:
@@ -253,16 +346,16 @@ class ControllerModeTest:
             color = colors[dist % len(colors)]
 
             for y in range(GRID_HEIGHT):
-                for x in range(GRID_WIDTH):
+                for x in range(GRID_WIDTH + 2):  # Include both sidebar columns
                     manhattan_dist = abs(x - center_x) + abs(y - center_y)
                     if manhattan_dist == dist:
                         self.set_pad_color(x, y, color)
             time.sleep(0.15)
 
     def animation_pulse(self, duration=3.0):
-        """Pulsing pattern"""
+        """Pulsing pattern (including both sidebar columns)"""
         self.log_event("ANIMATION", "Starting pulse")
-        colors = ['DIM_BLUE', 'BLUE', 'CYAN', 'WHITE', 'CYAN', 'BLUE']
+        colors = ["DIM_BLUE", "BLUE", "CYAN", "WHITE", "CYAN", "BLUE"]
         start_time = time.time()
 
         while time.time() - start_time < duration and self.running:
@@ -270,32 +363,40 @@ class ControllerModeTest:
             color = colors[color_idx]
 
             for y in range(GRID_HEIGHT):
-                for x in range(GRID_WIDTH):
+                for x in range(GRID_WIDTH + 2):  # Include both sidebar columns
                     self.set_pad_color(x, y, color)
             time.sleep(0.15)
 
     def animation_test_grid(self):
-        """Test pattern showing grid coordinates"""
+        """Test pattern showing grid coordinates (including both sidebar columns)"""
         self.log_event("ANIMATION", "Drawing test grid")
         self.clear_all_pads()
 
-        # Light up corners
-        corners = [(0, 0), (GRID_WIDTH-1, 0), (0, GRID_HEIGHT-1), (GRID_WIDTH-1, GRID_HEIGHT-1)]
+        # Light up all 4 corners (including both sidebar columns)
+        corners = [
+            (0, 0),
+            (GRID_WIDTH, 0),
+            (GRID_WIDTH + 1, 0),
+            (0, GRID_HEIGHT - 1),
+            (GRID_WIDTH, GRID_HEIGHT - 1),
+            (GRID_WIDTH + 1, GRID_HEIGHT - 1),
+        ]
         for x, y in corners:
-            self.set_pad_color(x, y, 'RED')
+            self.set_pad_color(x, y, "RED")
             time.sleep(0.2)
 
         time.sleep(0.5)
 
-        # Light up edges
-        for x in range(GRID_WIDTH):
-            self.set_pad_color(x, 0, 'GREEN')
-            self.set_pad_color(x, GRID_HEIGHT-1, 'GREEN')
+        # Light up edges including both sidebar columns
+        for x in range(GRID_WIDTH + 2):  # Include both sidebar columns
+            self.set_pad_color(x, 0, "GREEN")
+            self.set_pad_color(x, GRID_HEIGHT - 1, "GREEN")
             time.sleep(0.05)
 
-        for y in range(1, GRID_HEIGHT-1):
-            self.set_pad_color(0, y, 'BLUE')
-            self.set_pad_color(GRID_WIDTH-1, y, 'BLUE')
+        for y in range(1, GRID_HEIGHT - 1):
+            self.set_pad_color(0, y, "BLUE")
+            self.set_pad_color(GRID_WIDTH, y, "CYAN")  # First sidebar edge
+            self.set_pad_color(GRID_WIDTH + 1, y, "MAGENTA")  # Second sidebar edge
             time.sleep(0.05)
 
     def run_startup_animation(self):
@@ -320,54 +421,139 @@ class ControllerModeTest:
         """Handle pad press event"""
         x, y = self.note_to_pad(note)
         if x is not None:
-            self.pad_states[x][y] = (velocity > 0)
+            self.pad_states[x][y] = velocity > 0
             action = "pressed" if velocity > 0 else "released"
             self.log_event("PAD", f"Pad ({x:2d},{y}) {action} - Note {note}")
 
-            # Visual feedback: flash the pad white on press
             if velocity > 0:
-                self.set_pad_color(x, y, 'WHITE')
+                # Show pad note on 7-segment display
+                self.send_7seg_text(f"P{note:02d}")
+                # Visual feedback: flash the pad white on press
+                self.set_pad_color(x, y, "WHITE")
                 # Schedule turn off after 100ms
                 threading.Timer(0.1, lambda: self.set_pad_off(x, y)).start()
+            else:
+                # Clear display on release
+                self.send_7seg_text("")
 
     def handle_button_press(self, note, velocity):
         """Handle button press event"""
         button_name = BUTTON_NAMES.get(note, f"UNKNOWN_{note}")
         action = "pressed" if velocity > 0 else "released"
-        self.button_states[note] = (velocity > 0)
-        self.log_event("BUTTON", f"{button_name} {action}")
+        self.button_states[note] = velocity > 0
+        self.log_event("BUTTON", f"{button_name} {action} - Note {note}")
 
-        # Visual feedback: light up button LED on press
         if velocity > 0:
+            # Show button on 7-segment display
+            self.send_7seg_text(f"B{note:02d}")
+            # TODO: Add button LED feedback when implemented
+        else:
+            # Clear display on release
+            self.send_7seg_text("")
+
+        if velocity > 0:
+            # Show button note on 7-segment display
+            self.send_7seg_text(f"B{note:02d}")
+            # Visual feedback: light up button LED on press
             self.set_button_led(note, True)
             threading.Timer(0.1, lambda: self.set_button_led(note, False)).start()
+        else:
+            # Clear display on release
+            self.send_7seg_text("")
 
     def handle_encoder_change(self, cc, value):
         """Handle encoder change event"""
         encoder_name = ENCODER_NAMES.get(cc, f"CC_{cc}")
         delta = value - 64  # Relative encoder value
         self.encoder_values[cc] = value
-        self.log_event("ENCODER", f"{encoder_name} = {value} (delta: {delta:+d})")
+        self.log_event(
+            "ENCODER", f"{encoder_name} = {value} (delta: {delta:+d}) - CC {cc}"
+        )
+
+        # Show encoder CC on 7-segment display
+        self.send_7seg_text(f"E{cc:02d}")
+        # Auto-clear after 500ms
+        threading.Timer(0.5, lambda: self.send_7seg_text("")).start()
 
     def handle_midi_message(self, msg):
         """Process incoming MIDI message"""
-        if msg.type == 'note_on' or msg.type == 'note_off':
-            note = msg.note
-            velocity = msg.velocity if msg.type == 'note_on' else 0
+        if msg.type == "sysex":
+            # Handle SysEx messages (sidebar pads, buttons, etc.)
+            data = bytes([0xF0] + list(msg.data) + [0xF7])
+            self.handle_sysex(data)
 
-            # Determine if it's a pad or button
-            if GRID_BASE_NOTE <= note < GRID_BASE_NOTE + (GRID_WIDTH * GRID_HEIGHT):
+        elif msg.type == "note_on" or msg.type == "note_off":
+            note = msg.note
+            velocity = msg.velocity if msg.type == "note_on" else 0
+            channel = msg.channel
+
+            # Route based on MIDI channel
+            if channel == MIDI_CHANNEL:
+                # Channel 1: Pads (notes 0-127)
                 self.handle_pad_press(note, velocity)
-            elif BUTTON_BASE_NOTE <= note < BUTTON_BASE_NOTE + 20:
+            elif channel == BUTTON_CHANNEL:
+                # Channel 2: Buttons (notes 0-39)
                 self.handle_button_press(note, velocity)
             else:
-                self.log_event("MIDI", f"Unknown note: {note} velocity: {velocity}")
+                self.log_event(
+                    "MIDI",
+                    f"Unknown channel {channel + 1}: note {note} velocity {velocity}",
+                )
 
-        elif msg.type == 'control_change':
+        elif msg.type == "control_change":
             self.handle_encoder_change(msg.control, msg.value)
 
         else:
             self.log_event("MIDI", f"Other message: {msg}")
+
+    def handle_sysex(self, data):
+        """Handle SysEx messages"""
+        # Check if it's a Deluge message: F0 00 21 7B 01 [cmd] ...
+        if len(data) < 7:
+            return
+
+        if data[1:5] != bytes(DELUGE_SYSEX_ID):
+            return
+
+        cmd = data[5]
+
+        if cmd == SysExCommand.SIDEBAR_PAD_EVENT:  # SIDEBAR_PAD_EVENT
+            if len(data) >= 10:
+                sidebar_col = data[6]  # 0 or 1
+                y = data[7]
+                state = data[8]
+                action = "pressed" if state > 0 else "released"
+                x_display = (
+                    GRID_WIDTH + sidebar_col
+                )  # Convert to display coordinates (16 or 17)
+                self.log_event("SIDEBAR_PAD", f"Sidebar pad ({x_display},{y}) {action}")
+
+                if state > 0:
+                    # Show on 7-seg
+                    self.send_7seg_text(f"S{sidebar_col}{y}")
+                    # Visual feedback: flash the sidebar pad white on press
+                    self.set_pad_color(x_display, y, "WHITE")
+                    # Schedule turn off after 100ms
+                    threading.Timer(0.1, lambda: self.set_pad_off(x_display, y)).start()
+                else:
+                    # Clear display on release
+                    self.send_7seg_text("")
+
+        elif cmd == SysExCommand.BUTTON_EVENT:  # BUTTON_EVENT
+            if len(data) >= 9:
+                button_id = data[6]
+                state = data[7]
+                button_name = BUTTON_NAMES.get(button_id, f"BUTTON_{button_id}")
+                action = "pressed" if state > 0 else "released"
+                self.log_event("BUTTON", f"{button_name} {action} - ID {button_id}")
+
+                if state > 0:
+                    # Show on 7-seg
+                    self.send_7seg_text(f"B{button_id:02d}")
+                    # TODO: Add button LED feedback when implemented
+                else:
+                    # Clear display on release
+                    self.send_7seg_text("")
 
     def midi_listener_thread(self):
         """Thread to listen for incoming MIDI messages"""
@@ -382,9 +568,9 @@ class ControllerModeTest:
 
     def interactive_mode(self):
         """Interactive mode with command prompt"""
-        print("\n" + "="*70)
+        print("\n" + "=" * 70)
         print("CONTROLLER MODE TEST - INTERACTIVE MODE")
-        print("="*70)
+        print("=" * 70)
         print("\nCommands:")
         print("  grid     - Show test grid pattern")
         print("  rainbow  - Rainbow wave animation")
@@ -396,33 +582,33 @@ class ControllerModeTest:
         print("  status   - Show current state")
         print("  quit     - Exit")
         print("\nPress pads, buttons, or turn encoders on Deluge to see events logged.")
-        print("="*70 + "\n")
+        print("=" * 70 + "\n")
 
         while self.running:
             try:
                 cmd = input(">>> ").strip().lower()
 
-                if cmd == 'quit' or cmd == 'exit' or cmd == 'q':
+                if cmd == "quit" or cmd == "exit" or cmd == "q":
                     self.running = False
                     break
 
-                elif cmd == 'grid':
+                elif cmd == "grid":
                     self.animation_test_grid()
 
-                elif cmd == 'rainbow':
+                elif cmd == "rainbow":
                     self.animation_rainbow_wave(duration=5.0)
 
-                elif cmd == 'spiral':
+                elif cmd == "spiral":
                     self.animation_spiral(duration=3.0)
 
-                elif cmd == 'pulse':
+                elif cmd == "pulse":
                     self.animation_pulse(duration=3.0)
 
-                elif cmd == 'clear':
+                elif cmd == "clear":
                     self.clear_all_pads()
                     self.log_event("COMMAND", "Cleared all pads")
 
-                elif cmd == 'buttons':
+                elif cmd == "buttons":
                     self.log_event("COMMAND", "Testing all button LEDs")
                     for note in BUTTON_NAMES.keys():
                         self.set_button_led(note, True)
@@ -432,20 +618,63 @@ class ControllerModeTest:
                         self.set_button_led(note, False)
                         time.sleep(0.1)
 
-                elif cmd == 'corner':
+                elif cmd == "corner":
                     self.log_event("COMMAND", "Lighting corner pads")
-                    corners = [(0, 0, 'RED'), (15, 0, 'GREEN'),
-                              (0, 7, 'BLUE'), (15, 7, 'YELLOW')]
+                    corners = [
+                        (0, 0, "RED"),
+                        (15, 0, "GREEN"),
+                        (0, 7, "BLUE"),
+                        (15, 7, "YELLOW"),
+                    ]
                     for x, y, color in corners:
                         self.set_pad_color(x, y, color)
 
-                elif cmd == 'status':
-                    print(f"\nPad states: {sum(sum(row) for row in self.pad_states)} pressed")
+                elif cmd == "status":
+                    print(
+                        f"\nPad states: {sum(sum(row) for row in self.pad_states)} pressed"
+                    )
                     print(f"Button states: {sum(self.button_states.values())} pressed")
                     print(f"Encoder values: {len(self.encoder_values)} tracked")
                     print(f"Events logged: {len(self.event_log)}")
 
-                elif cmd == '':
+                elif cmd == "audit":
+                    print("\n" + "=" * 60)
+                    print("BUTTON ID AUDIT")
+                    print("=" * 60)
+                    # Check for duplicates
+                    all_notes = list(BUTTON_NAMES.keys())
+                    duplicates = [
+                        note for note in set(all_notes) if all_notes.count(note) > 1
+                    ]
+
+                    if duplicates:
+                        print(
+                            f"\n⚠️  WARNING: Found {len(duplicates)} duplicate button IDs!"
+                        )
+                        for note in duplicates:
+                            names = [
+                                name for n, name in BUTTON_NAMES.items() if n == note
+                            ]
+                            print(f"  Note {note}: {names}")
+                    else:
+                        print("\n✓ No duplicate button IDs found")
+
+                    print(f"\nTotal buttons mapped: {len(BUTTON_NAMES)}")
+                    print("\nButton mapping by range:")
+                    print(
+                        f"  Gold encoder buttons (84-91): {[n for n in BUTTON_NAMES.keys() if 84 <= n <= 91]}"
+                    )
+                    print(
+                        f"  Mod buttons (92-99): {[n for n in BUTTON_NAMES.keys() if 92 <= n <= 99]}"
+                    )
+                    print(
+                        f"  Main buttons (100-123): {[n for n in BUTTON_NAMES.keys() if 100 <= n <= 123]}"
+                    )
+                    print(
+                        f"  Others: {[n for n in BUTTON_NAMES.keys() if n < 84 or n > 123]}"
+                    )
+
+                elif cmd == "":
                     continue
 
                 else:
@@ -462,9 +691,9 @@ class ControllerModeTest:
 
     def run(self):
         """Main test execution"""
-        print("="*70)
+        print("=" * 70)
         print("DELUGE CONTROLLER MODE TEST SCRIPT")
-        print("="*70)
+        print("=" * 70)
 
         if not self.setup_midi():
             print("Failed to setup MIDI. Exiting.")
@@ -508,5 +737,6 @@ if __name__ == "__main__":
     except Exception as e:
         print(f"Fatal error: {e}")
         import traceback
+
         traceback.print_exc()
         sys.exit(1)

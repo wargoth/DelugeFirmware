@@ -26,10 +26,11 @@ Note Layout: Row-major (note = base + y*width + x)
 
 ## MIDI Messages FROM Deluge (Outputs)
 
-### Pad Grid (16x8 = 128 pads)
+### Main Pad Grid (16x8 = 128 pads)
 
 **Note On/Off Messages:**
 ```
+Channel: config.midiChannel (default: 0 = MIDI channel 1)
 Status: 0x90 (Note On, channel 1)
 Note:   gridBaseNote + (y * gridWidth) + x
         Default: 0-127 for full 16x8 grid
@@ -41,6 +42,23 @@ Velocity: 0
 ```
 
 **Note:** Deluge does not support velocity sensing or polyphonic aftertouch.
+
+### Sidebar Pads (Mute/Audition - 1x8 column)
+
+**Note On/Off Messages:**
+```
+Channel: config.midiChannel + 1 (default: 1 = MIDI channel 2)
+Status: 0x91 (Note On, channel 2)
+Note:   gridBaseNote + y (0-7 for 8 sidebar pads)
+        Default: 0-7
+Velocity: 127 (fixed)
+
+Status: 0x81 (Note Off, channel 2)
+Note:   Same as above
+Velocity: 0
+```
+
+**Rationale:** Sidebar pads use a separate MIDI channel to avoid note number conflicts with the main 16x8 grid.
 
 ### Buttons
 
@@ -117,6 +135,23 @@ Note:   Pad note
 Velocity: 0 (ignored)
 ```
 
+### Sidebar LED Control - Simple (Velocity-based colors)
+
+**Note On (set color):**
+```
+Channel: config.midiChannel + 1 (default: channel 2)
+Status: 0x91 (Note On, channel 2)
+Note:   Sidebar pad note (0-7 for 8 sidebar pads)
+Velocity: Color index (same palette as main pads: 0-127)
+```
+
+**Note Off (turn off LED):**
+```
+Status: 0x81 (Note Off, channel 2)
+Note:   Sidebar pad note
+Velocity: 0 (ignored)
+```
+
 ### Pad LED Control - Full RGB (SysEx)
 
 For precise RGB control:
@@ -174,12 +209,16 @@ Example: "HELLO"
 F0 00 21 7D 01 10 48 45 4C 4C 4F F7
 ```
 
-**Set 7-Segment Display:**
+**Set 7-Segment Display (Text):**
 ```
-F0 00 21 7D 01 11 ss ss ss ss F7
+F0 00 21 7D 01 11 [text bytes...] F7
 
-Where ss = segment data for each digit
+Maximum 4 characters for 7-segment display.
+Example: "A440"
+F0 00 21 7D 01 11 41 34 34 30 F7
 ```
+
+**Note:** The 7-segment display command accepts ASCII text (up to 4 characters), not raw segment data. The firmware will automatically convert the text to the appropriate 7-segment encoding.
 
 **Set OLED Pixels:**
 ```
@@ -280,11 +319,35 @@ See [controller_mode_bandwidth_latency.md](controller_mode_bandwidth_latency.md)
 ## Notes
 
 - **Exit**: Press SHIFT+BACK to exit controller mode
-- **MIDI Channel**: All messages on configured channel (default: channel 1)
+- **MIDI Channels**:
+  - Main grid pads/buttons/encoders: `config.midiChannel` (default: channel 1)
+  - Sidebar pads: `config.midiChannel + 1` (default: channel 2)
 - **Hardware Limitations**: Deluge does not support velocity sensing or polyphonic aftertouch
 - **SysEx**: Can be disabled via config for security
 - **Color Palette**: Simple velocity-based palette for quick scripting
 - **Full RGB**: SysEx for precise color control
+- **MIDI Loop Prevention**: Incoming MIDI is only accepted from the same USB cable used for output (see below)
+
+## MIDI Loop Prevention
+
+**Problem:** Without proper filtering, MIDI messages sent from Deluge could be echoed back by the host computer's MIDI routing, creating infinite loops.
+
+**Solution:** Controller mode implements bidirectional cable verification:
+
+1. **Outgoing Messages:** All MIDI output uses a specific `activeCable_` (USB cable 0)
+2. **Incoming Messages:** Only MIDI input from the **same cable** is accepted:
+   ```cpp
+   if (&fromCable != activeCable_) {
+       return false;  // Ignore messages from other cables
+   }
+   ```
+
+**Benefits:**
+- Prevents MIDI loops even with software MIDI thru enabled
+- Ensures remote script communicates only with its Deluge instance
+- No conflict with DIN MIDI or other USB MIDI devices
+
+**Recommendation:** Disable MIDI thru in your DAW or ensure routing doesn't echo controller mode messages back to Deluge.
 
 ## Remote Script Development
 

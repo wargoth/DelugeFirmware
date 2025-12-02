@@ -20,6 +20,8 @@
 #include "deluge/io/usb/usb_state.h"
 #include "gui/l10n/l10n.h"
 #include "gui/ui/sound_editor.h"
+#include "gui/ui/ui.h"
+#include "gui/views/controller_mode_view.h"
 #include "hid/display/display.h"
 #include "hid/hid_sysex.h"
 #include "io/debug/log.h"
@@ -302,6 +304,15 @@ void MidiEngine::midiSysexReceived(MIDICable& cable, uint8_t* data, int32_t len)
 	case SysEx::SysexCommands::Pong: // PONG, reserved
 		D_PRINTLN("Pong");
 	default:
+		// For any unhandled Deluge SysEx, check if we're in controller mode
+		// This allows controller mode to use custom command bytes (like 0x31 for sidebar LED)
+		if (!developerSysexCodeReceived) {
+			RootUI* rootUI = getRootUI();
+			if (rootUI && rootUI->getUIType() == UIType::CONTROLLER_MODE) {
+				ControllerModeView* controllerView = static_cast<ControllerModeView*>(rootUI);
+				controllerView->handleMidiSysexForDisplay(data, len);
+			}
+		}
 		break;
 	}
 }

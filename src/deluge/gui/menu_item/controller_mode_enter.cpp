@@ -23,9 +23,9 @@
 namespace deluge::gui::menu_item {
 
 MenuItem* ControllerModeEnter::selectButtonPress() {
-	// Open controller mode view
+	// Open controller mode view as the root UI
 	display->setNextTransitionDirection(1);
-	openUI(&controllerModeView);
+	changeRootUI(&controllerModeView);
 	return NO_NAVIGATION;
 }
 

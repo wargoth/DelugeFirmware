@@ -17,9 +17,9 @@
 
 #pragma once
 
-#include "gui/ui/root_ui.h"
 #include "definitions_cxx.hpp"
 #include "gui/colour/colour.h"
+#include "gui/ui/root_ui.h"
 #include "hid/button.h"
 
 class MIDICable;
@@ -37,14 +37,15 @@ struct ControllerModeConfig {
 	// Note layout: true = row-major (default), false = column-major
 	bool rowMajorNotes = true;
 
-	// Button MIDI note offset (buttons start at this note number)
-	int32_t buttonBaseNote = 100;
+	// Button configuration
+	// Buttons send via SysEx (not MIDI notes) to avoid conflicts with 128-pad grid
+	int32_t buttonBaseNote = 0; // Used for LED control mapping only
 
 	// Encoder CC numbers start
 	int32_t encoderBaseCC = 71;
 
 	// Enable/disable features
-	bool receiveDisplaySysex = true;  // Accept display control via SysEx
+	bool receiveDisplaySysex = true; // Accept display control via SysEx
 };
 
 /**
@@ -118,10 +119,11 @@ private:
 
 	// Display state (controlled by remote script via MIDI)
 	RGB padColors_[kDisplayWidth][kDisplayHeight];
-	bool buttonLEDStates_[64]; // State for various button LEDs
-	uint8_t encoderLEDStates_[8]; // State for gold encoder LEDs (0-127)
-	char displayText_[20];     // Text for 7-seg or OLED display
-	uint8_t displaySegments_[4]; // 7-seg segment data
+	RGB sidebarColors_[kSideBarWidth][kDisplayHeight]; // Sidebar LED colors (2 columns)
+	bool buttonLEDStates_[64];                         // State for various button LEDs
+	uint8_t encoderLEDStates_[8];                      // State for gold encoder LEDs (0-127)
+	char displayText_[20];                             // Text for 7-seg or OLED display
+	uint8_t displaySegments_[4];                       // 7-seg segment data
 
 	// Pad state tracking
 	bool padPressed_[kDisplayWidth][kDisplayHeight];
@@ -137,12 +139,15 @@ private:
 	void sendPadNoteOff(int32_t x, int32_t y);
 	void sendButtonMidi(deluge::hid::Button button, bool on);
 	void sendEncoderCC(int32_t ccNumber, int32_t value);
+	void sendButtonSysex(int32_t buttonId, bool pressed);         // Button press/release via SysEx
+	void sendSidebarPadSysex(int32_t x, int32_t y, bool pressed); // Sidebar pad press/release via SysEx
 
 	// SysEx protocol implementation
 	void sendIdentityReply();
 	void processSysexDisplayCommand(uint8_t* data, int32_t len);
 	void processSysex7SegCommand(uint8_t* data, int32_t len);
 	void processSysexOLEDCommand(uint8_t* data, int32_t len);
+	void processSysexSidebarLED(uint8_t* data, int32_t len); // Sidebar LED control via SysEx
 
 	// Update display based on MIDI-controlled state
 	void updatePadLEDs();
