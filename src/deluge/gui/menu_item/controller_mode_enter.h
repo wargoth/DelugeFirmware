@@ -17,8 +17,8 @@
 
 #pragma once
 
-#include "gui/menu_item/menu_item.h"
 #include "gui/l10n/l10n.h"
+#include "gui/menu_item/menu_item.h"
 
 namespace deluge::gui::menu_item {
 
@@ -29,9 +29,12 @@ public:
 	MenuItem* selectButtonPress() override;
 
 	MenuPermission checkPermissionToBeginSession(ModControllableAudio* modControllable, int32_t whichThing,
-	                                              ::MultiRange** currentRange) override {
+	                                             ::MultiRange** currentRange) override {
 		return MenuPermission::YES;
 	}
+
+	void beginSession(MenuItem* navigatedBackwardFrom = nullptr) override;
+	bool shouldEnterSubmenu() override { return false; }
 };
 
 } // namespace deluge::gui::menu_item

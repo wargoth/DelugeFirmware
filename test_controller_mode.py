@@ -26,7 +26,7 @@ from datetime import datetime
 
 # Controller Mode MIDI Configuration (matching implementation)
 MIDI_CHANNEL = 0  # MIDI channel 1 (0-indexed) for PADS
-BUTTON_CHANNEL = 1  # MIDI channel 2 (1-indexed) for BUTTONS
+
 GRID_WIDTH = 16
 GRID_HEIGHT = 8
 GRID_BASE_NOTE = 0
@@ -143,6 +143,9 @@ class ControllerModeTest:
         self.pad_states = [[False] * GRID_HEIGHT for _ in range(GRID_WIDTH)]
         self.button_states = {}
         self.encoder_values = {}
+        self.encoder_accumulators = {
+            cc: 64 for cc in range(71, 79)
+        }  # Initialize gold knobs to center
         self.event_log = deque(maxlen=100)
         self.animation_thread = None
 
@@ -276,15 +279,12 @@ class ControllerModeTest:
             self.outport.send(msg)
 
     def set_button_led(self, button_note, on):
-        """Set a button LED state"""
-        if on:
-            msg = mido.Message(
-                "note_on", channel=BUTTON_CHANNEL, note=button_note, velocity=127
-            )
-        else:
-            msg = mido.Message(
-                "note_off", channel=BUTTON_CHANNEL, note=button_note, velocity=0
-            )
+        """Set a button LED state via SysEx"""
+        state = 1 if on else 0
+        sysex_data = self._build_sysex(
+            SysExCommand.BUTTON_LED_CONTROL, button_note, state
+        )
+        msg = mido.Message("sysex", data=sysex_data)
         self.outport.send(msg)
 
     def send_7seg_text(self, text):
@@ -475,6 +475,26 @@ class ControllerModeTest:
         # Auto-clear after 500ms
         threading.Timer(0.5, lambda: self.send_7seg_text("")).start()
 
+        # Send feedback to encoder LEDs (gold knobs only)
+        # Gold knobs are CC 71-78 (ENCODER_BASE_CC + 0..7)
+        # LED control is CC 91-98 (ENCODER_BASE_CC + 20 + 0..7)
+        if ENCODER_BASE_CC <= cc < ENCODER_BASE_CC + 8:
+            # Update accumulator
+            current_val = self.encoder_accumulators.get(cc, 64)
+            new_val = max(0, min(127, current_val + delta))
+            self.encoder_accumulators[cc] = new_val
+
+            led_cc = cc + 20
+            # Map 0-127 value to LED brightness/state
+            # For now, just echo the value back
+            msg = mido.Message(
+                "control_change", channel=MIDI_CHANNEL, control=led_cc, value=new_val
+            )
+            self.outport.send(msg)
+            self.log_event(
+                "FEEDBACK", f"Sent encoder LED update: CC {led_cc} = {new_val}"
+            )
+
     def handle_midi_message(self, msg):
         """Process incoming MIDI message"""
         if msg.type == "sysex":
@@ -491,9 +511,6 @@ class ControllerModeTest:
             if channel == MIDI_CHANNEL:
                 # Channel 1: Pads (notes 0-127)
                 self.handle_pad_press(note, velocity)
-            elif channel == BUTTON_CHANNEL:
-                # Channel 2: Buttons (notes 0-39)
-                self.handle_button_press(note, velocity)
             else:
                 self.log_event(
                     "MIDI",
@@ -550,7 +567,11 @@ class ControllerModeTest:
                 if state > 0:
                     # Show on 7-seg
                     self.send_7seg_text(f"B{button_id:02d}")
-                    # TODO: Add button LED feedback when implemented
+                    # Visual feedback: light up button LED on press
+                    self.set_button_led(button_id, True)
+                    threading.Timer(
+                        0.1, lambda: self.set_button_led(button_id, False)
+                    ).start()
                 else:
                     # Clear display on release
                     self.send_7seg_text("")
@@ -617,6 +638,27 @@ class ControllerModeTest:
                     for note in BUTTON_NAMES.keys():
                         self.set_button_led(note, False)
                         time.sleep(0.1)
+
+                elif cmd == "knobs":
+                    self.log_event("COMMAND", "Testing all encoder LEDs (CC 91-98)")
+                    # Cycle through all 8 possible encoder LED channels
+                    for i in range(8):
+                        cc = 91 + i
+                        self.log_event("TEST", f"Lighting Encoder LED {i} (CC {cc})")
+                        # Full brightness
+                        msg = mido.Message(
+                            "control_change",
+                            channel=MIDI_CHANNEL,
+                            control=cc,
+                            value=127,
+                        )
+                        self.outport.send(msg)
+                        time.sleep(0.5)
+                        # Off
+                        msg = mido.Message(
+                            "control_change", channel=MIDI_CHANNEL, control=cc, value=0
+                        )
+                        self.outport.send(msg)
 
                 elif cmd == "corner":
                     self.log_event("COMMAND", "Lighting corner pads")

@@ -58,7 +58,7 @@ ControllerModeView::ControllerModeView() {
 	memset(sidebarColors_, 0, sizeof(sidebarColors_));
 	memset(buttonLEDStates_, 0, sizeof(buttonLEDStates_));
 	memset(encoderLEDStates_, 0, sizeof(encoderLEDStates_));
-	memset(padPressed_, 0, sizeof(padPressed_));
+
 	memset(displayText_, 0, sizeof(displayText_));
 	memset(displaySegments_, 0, sizeof(displaySegments_));
 
@@ -89,6 +89,7 @@ void ControllerModeView::focusRegained() {
 	// Update all displays
 	updatePadLEDs();
 	updateButtonLEDs();
+	updateEncoderLEDs();
 	updateDisplay();
 	uiTimerManager.setTimer(TimerName::DISPLAY, 1000);
 }
@@ -109,13 +110,6 @@ bool ControllerModeView::renderMainPads(uint32_t whichRows, RGB image[][kDisplay
 		for (int32_t x = 0; x < kDisplayWidth; x++) {
 			// Use color set by remote script, or black if not set
 			image[y][x] = padColors_[x][y];
-
-			// Brighten if currently pressed
-			if (padPressed_[x][y]) {
-				image[y][x].r = std::min(255, image[y][x].r + 50);
-				image[y][x].g = std::min(255, image[y][x].g + 50);
-				image[y][x].b = std::min(255, image[y][x].b + 50);
-			}
 
 			occupancyMask[y][x] = 64;
 		}
@@ -170,17 +164,11 @@ ActionResult ControllerModeView::padAction(int32_t x, int32_t y, int32_t velocit
 	}
 
 	if (velocity > 0) {
-		// Pad pressed
-		if (x < kDisplayWidth) {
-			padPressed_[x][y] = true;
-		}
+
 		sendPadNoteOn(x, y);
 	}
 	else {
-		// Pad released
-		if (x < kDisplayWidth) {
-			padPressed_[x][y] = false;
-		}
+
 		sendPadNoteOff(x, y);
 	}
 
@@ -234,9 +222,6 @@ void ControllerModeView::tempoEncoderAction(int8_t offset, bool encoderButtonPre
 	int32_t value = 64 + offset;
 	value = std::max(0_i32, std::min(127_i32, value));
 	sendEncoderCC(73, value); // CC 73 for tempo encoder
-
-	// Still allow tempo to change in firmware via PlaybackHandler
-	playbackHandler.tempoEncoderAction(offset, encoderButtonPressed, shiftButtonPressed);
 }
 
 void ControllerModeView::modEncoderAction(int32_t whichModEncoder, int32_t offset) {
@@ -459,14 +444,6 @@ void ControllerModeView::handleMidiNoteForLED(int32_t channel, int32_t note, int
 
 		uiNeedsRendering(this);
 	}
-	else {
-		// Check if this is a button LED command
-		int32_t buttonIndex = note - config_.buttonBaseNote;
-		if (buttonIndex >= 0 && buttonIndex < 64) {
-			buttonLEDStates_[buttonIndex] = (velocity > 0);
-			updateButtonLEDs();
-		}
-	}
 }
 
 void ControllerModeView::handleMidiCCForControl(int32_t channel, int32_t cc, int32_t value) {
@@ -530,6 +507,10 @@ void ControllerModeView::handleMidiSysexForDisplay(uint8_t* data, int32_t len) {
 		processSysexSidebarLED(data, len);
 		break;
 
+	case SysExCommand::BUTTON_LED_CONTROL:
+		processSysexButtonLED(data, len);
+		break;
+
 	default:
 		break;
 	}
@@ -567,6 +548,19 @@ void ControllerModeView::processSysexOLEDCommand(uint8_t* data, int32_t len) {
 	// Set OLED pixels: F0 [ID] [device] [cmd] [x] [y] [width] [height] [pixel_data...] F7
 	// This would allow remote script to draw graphics on OLED
 	// Implementation depends on OLED driver interface
+}
+
+void ControllerModeView::processSysexButtonLED(uint8_t* data, int32_t len) {
+	// Set button LED: F0 [ID] [device] 41 [button_id] [state] F7
+	if (len >= 8) {
+		int32_t buttonId = data[6];
+		int32_t state = data[7];
+
+		if (buttonId >= 0 && buttonId < 64) {
+			buttonLEDStates_[buttonId] = (state > 0);
+			updateButtonLEDs();
+		}
+	}
 }
 
 void ControllerModeView::sendIdentityReply() {
@@ -721,8 +715,13 @@ int32_t ControllerModeView::buttonToMidiNote(deluge::hid::Button button) const {
 	case TEMPO_ENC:
 		offset = 23;
 		break; // Tempo encoder button
-	// Note: MOD_ENCODER buttons (gold knob push) are handled by modEncoderButtonAction() -> notes 120-127
-	// Note: MOD buttons (effect buttons) are handled by modButtonAction() -> notes 92-99
+	case MOD_ENCODER_0:
+		offset = 24;
+		break; // Gold Encoder 0
+	case MOD_ENCODER_1:
+		offset = 25;
+		break; // Gold Encoder 1
+	// Note: MOD buttons (effect buttons) are handled by modButtonAction() -> IDs 32-39
 	default:
 		return -1;
 	}
@@ -734,7 +733,7 @@ deluge::hid::Button ControllerModeView::midiNoteToButton(int32_t note) const {
 	// Reverse mapping from MIDI note to button
 	// Used for LED control
 	int32_t offset = note - config_.buttonBaseNote;
-	if (offset < 0 || offset > 23) {
+	if (offset < 0 || offset > 25) {
 		return static_cast<deluge::hid::Button>(-1);
 	}
 
@@ -742,7 +741,7 @@ deluge::hid::Button ControllerModeView::midiNoteToButton(int32_t note) const {
 	const deluge::hid::Button buttons[] = {
 	    PLAY,  RECORD,     TAP_TEMPO, SYNC_SCALING, LEARN, SCALE_MODE, CROSS_SCREEN_EDIT, BACK,         LOAD,
 	    SAVE,  KEYBOARD,   KIT,       SYNTH,        MIDI,  CV,         CLIP_VIEW,         SESSION_VIEW, AFFECT_ENTIRE,
-	    SHIFT, SELECT_ENC, TRIPLETS,  X_ENC,        Y_ENC, TEMPO_ENC};
+	    SHIFT, SELECT_ENC, TRIPLETS,  X_ENC,        Y_ENC, TEMPO_ENC,  MOD_ENCODER_0,     MOD_ENCODER_1};
 
 	return buttons[offset];
 }
@@ -760,75 +759,55 @@ void ControllerModeView::updateButtonLEDs() {
 	// Map button note numbers to actual button LEDs
 	using namespace indicator_leds;
 
-	// Map the first 20 button states to actual button LEDs
-	// Note offsets match buttonToMidiNote() mapping
-	if (config_.buttonBaseNote + 0 < 64 && buttonLEDStates_[config_.buttonBaseNote + 0]) {
-		setLedState(LED::PLAY, buttonLEDStates_[0]);
-	}
-	if (config_.buttonBaseNote + 1 < 64) {
-		setLedState(LED::RECORD, buttonLEDStates_[1]);
-	}
-	if (config_.buttonBaseNote + 2 < 64) {
-		setLedState(LED::TAP_TEMPO, buttonLEDStates_[2]);
-	}
-	if (config_.buttonBaseNote + 3 < 64) {
-		setLedState(LED::SYNC_SCALING, buttonLEDStates_[3]);
-	}
-	if (config_.buttonBaseNote + 4 < 64) {
-		setLedState(LED::LEARN, buttonLEDStates_[4]);
-	}
-	if (config_.buttonBaseNote + 5 < 64) {
-		setLedState(LED::SCALE_MODE, buttonLEDStates_[5]);
-	}
-	if (config_.buttonBaseNote + 6 < 64) {
-		setLedState(LED::CROSS_SCREEN_EDIT, buttonLEDStates_[6]);
-	}
-	if (config_.buttonBaseNote + 7 < 64) {
-		setLedState(LED::BACK, buttonLEDStates_[7]);
-	}
-	if (config_.buttonBaseNote + 8 < 64) {
-		setLedState(LED::LOAD, buttonLEDStates_[8]);
-	}
-	if (config_.buttonBaseNote + 9 < 64) {
-		setLedState(LED::SAVE, buttonLEDStates_[9]);
-	}
-	if (config_.buttonBaseNote + 10 < 64) {
-		setLedState(LED::KEYBOARD, buttonLEDStates_[10]);
-	}
-	if (config_.buttonBaseNote + 11 < 64) {
-		setLedState(LED::KIT, buttonLEDStates_[11]);
-	}
-	if (config_.buttonBaseNote + 12 < 64) {
-		setLedState(LED::SYNTH, buttonLEDStates_[12]);
-	}
-	if (config_.buttonBaseNote + 13 < 64) {
-		setLedState(LED::MIDI, buttonLEDStates_[13]);
-	}
-	if (config_.buttonBaseNote + 14 < 64) {
-		setLedState(LED::CV, buttonLEDStates_[14]);
-	}
-	if (config_.buttonBaseNote + 15 < 64) {
-		setLedState(LED::CLIP_VIEW, buttonLEDStates_[15]);
-	}
-	if (config_.buttonBaseNote + 16 < 64) {
-		setLedState(LED::SESSION_VIEW, buttonLEDStates_[16]);
-	}
-	if (config_.buttonBaseNote + 17 < 64) {
-		setLedState(LED::AFFECT_ENTIRE, buttonLEDStates_[17]);
-	}
-	if (config_.buttonBaseNote + 18 < 64) {
-		setLedState(LED::SHIFT, buttonLEDStates_[18]);
-	}
+	// Helper to set LED state if index is valid
+	auto updateLed = [&](int32_t offset, LED led) {
+		int32_t index = config_.buttonBaseNote + offset;
+		if (index >= 0 && index < 64) {
+			setLedState(led, buttonLEDStates_[index]);
+		}
+	};
+
+	updateLed(0, LED::PLAY);
+	updateLed(1, LED::RECORD);
+	updateLed(2, LED::TAP_TEMPO);
+	updateLed(3, LED::SYNC_SCALING);
+	updateLed(4, LED::LEARN);
+	updateLed(5, LED::SCALE_MODE);
+	updateLed(6, LED::CROSS_SCREEN_EDIT);
+	updateLed(7, LED::BACK);
+	updateLed(8, LED::LOAD);
+	updateLed(9, LED::SAVE);
+	updateLed(10, LED::KEYBOARD);
+	updateLed(11, LED::KIT);
+	updateLed(12, LED::SYNTH);
+	updateLed(13, LED::MIDI);
+	updateLed(14, LED::CV);
+	updateLed(15, LED::CLIP_VIEW);
+	updateLed(16, LED::SESSION_VIEW);
+	updateLed(17, LED::AFFECT_ENTIRE);
+	updateLed(18, LED::SHIFT);
+	// 19 is SELECT_ENC (no LED)
+	updateLed(20, LED::TRIPLETS);
+
+	// Mod buttons (32-39)
+	updateLed(32, LED::MOD_0);
+	updateLed(33, LED::MOD_1);
+	updateLed(34, LED::MOD_2);
+	updateLed(35, LED::MOD_3);
+	updateLed(36, LED::MOD_4);
+	updateLed(37, LED::MOD_5);
+	updateLed(38, LED::MOD_6);
+	updateLed(39, LED::MOD_7);
 }
 
 void ControllerModeView::updateEncoderLEDs() {
 	// Update gold encoder LEDs based on state set by remote script via MIDI CC
 	// LED state 0-127 maps to brightness level
-	for (int i = 0; i < 8; i++) {
+	// Only update the 2 physical gold knob LEDs
+	for (int i = 0; i < 2; i++) {
 		uint8_t level = encoderLEDStates_[i];
-		// Convert 0-127 MIDI value to 0-50 LED brightness (Deluge indicator range)
-		uint8_t brightness = (level * 50) / 127;
-		indicator_leds::setKnobIndicatorLevel(i, brightness);
+		// Use actuallySetKnobIndicatorLevel to bypass metering timer (which clears LED after 500ms)
+		indicator_leds::actuallySetKnobIndicatorLevel(i, level);
 	}
 	uiNeedsRendering(this);
 }

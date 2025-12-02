@@ -29,4 +29,8 @@ MenuItem* ControllerModeEnter::selectButtonPress() {
 	return NO_NAVIGATION;
 }
 
+void ControllerModeEnter::beginSession(MenuItem* navigatedBackwardFrom) {
+	selectButtonPress();
+}
+
 } // namespace deluge::gui::menu_item

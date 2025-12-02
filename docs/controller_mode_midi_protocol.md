@@ -19,7 +19,7 @@ Default configuration (customizable via `ControllerModeConfig`):
 MIDI Channel: 1 (channel 0 in code)
 Grid Size: 16x8 (128 pads)
 Grid Base Note: 0
-Button Base Note: 100
+Button Base Note: 0 (used only for LED control mapping)
 Encoder Base CC: 71
 Note Layout: Row-major (note = base + y*width + x)
 ```
@@ -43,46 +43,58 @@ Velocity: 0
 
 **Note:** Deluge does not support velocity sensing or polyphonic aftertouch.
 
-### Sidebar Pads (Mute/Audition - 1x8 column)
+### Sidebar Pads (2 columns × 8 rows = 16 pads)
 
-**Note On/Off Messages:**
+**SysEx Messages:**
 ```
-Channel: config.midiChannel + 1 (default: 1 = MIDI channel 2)
-Status: 0x91 (Note On, channel 2)
-Note:   gridBaseNote + y (0-7 for 8 sidebar pads)
-        Default: 0-7
-Velocity: 127 (fixed)
+F0 00 21 7B 01 30 [sidebar_col] [y] [state] F7
 
-Status: 0x81 (Note Off, channel 2)
-Note:   Same as above
-Velocity: 0
+Where:
+  F0           = SysEx start
+  00 21 7B     = Manufacturer ID (Synthstrom)
+  01           = Device ID (Deluge)
+  30           = Command: SIDEBAR_PAD_EVENT
+  sidebar_col  = Sidebar column (0-1 for x=16 and x=17)
+  y            = Row (0-7)
+  state        = 0x7F (pressed) / 0x00 (released)
+  F7           = SysEx end
 ```
-
-**Rationale:** Sidebar pads use a separate MIDI channel to avoid note number conflicts with the main 16x8 grid.
 
 ### Buttons
 
-All buttons send **Note On/Off** messages:
+All buttons send **SysEx messages**:
 
 ```
-Status: 0x90/0x80 (Note On/Off, channel 1)
-Note:   buttonBaseNote + offset
-Velocity: 127 (pressed) / 0 (released)
+F0 00 21 7B 01 40 [button_id] [state] F7
+
+Where:
+  F0           = SysEx start
+  00 21 7B     = Manufacturer ID (Synthstrom)
+  01           = Device ID (Deluge)
+  40           = Command: BUTTON_EVENT
+  button_id    = Button identifier (0-39)
+  state        = 0x7F (pressed) / 0x00 (released)
+  F7           = SysEx end
 ```
 
-**Button Mapping:**
+**Button ID Mapping:**
 ```
-PLAY = 100           RECORD = 101         TAP_TEMPO = 102
-SYNC_SCALING = 103   LEARN = 104          SCALE = 105
-CROSS_SCREEN = 106   BACK = 107           LOAD = 108
-SAVE = 109           KEYBOARD = 110       KIT = 111
-SYNTH = 112          MIDI = 113           CV = 114
-CLIP = 115           SONG = 116           AFFECT_ENTIRE = 117
-SHIFT = 118          SELECT_ENC = 119
+Main Buttons (0-23):
+0=PLAY            1=RECORD          2=TAP_TEMPO       3=SYNC_SCALING
+4=LEARN           5=SCALE_MODE      6=CROSS_SCREEN    7=BACK
+8=LOAD            9=SAVE            10=KEYBOARD       11=KIT
+12=SYNTH          13=MIDI           14=CV             15=CLIP_VIEW
+16=SESSION_VIEW   17=AFFECT_ENTIRE  18=SHIFT          19=SELECT_ENC
+20=TRIPLETS       21=X_ENC          22=Y_ENC          23=TEMPO_ENC
 
-Gold Encoder Buttons (8 encoders): 120-127
-Mod Encoder Buttons (8 encoders): 130-137
+Gold Encoder Buttons (24-31):
+24-31 = Gold knobs 0-7 (push buttons)
+
+Mod Encoder Buttons (32-39):
+32-39 = Mod/effect buttons 0-7
 ```
+
+**Rationale:** Buttons use SysEx to avoid the 128-note limitation and provide clearer mapping independent of MIDI note assignments.
 
 ### Encoders
 
@@ -99,11 +111,14 @@ Value: 64 + delta
 
 **Encoder Mapping:**
 ```
-Gold Knobs 0-7:      CC 71-78
-Horizontal Encoder:  CC 79
-Vertical Encoder:    CC 80
-Select Encoder:      CC 81
+Gold Knobs 0-7:      CC 71-78 (encoderBaseCC + 0 to 7)
+Horizontal Encoder:  CC 79 (encoderBaseCC + 8)
+Vertical Encoder:    CC 80 (encoderBaseCC + 9)
+Select Encoder:      CC 81 (encoderBaseCC + 10)
+Tempo Encoder:       CC 73 (fixed - gold knob 2 position)
 ```
+
+**Note:** The tempo encoder shares physical position with gold knob 2 (CC 73) but also allows firmware tempo changes.
 
 ## MIDI Messages TO Deluge (Inputs)
 
@@ -135,33 +150,37 @@ Note:   Pad note
 Velocity: 0 (ignored)
 ```
 
-### Sidebar LED Control - Simple (Velocity-based colors)
+### Sidebar LED Control - Full RGB (SysEx)
 
-**Note On (set color):**
+**SysEx message:**
 ```
-Channel: config.midiChannel + 1 (default: channel 2)
-Status: 0x91 (Note On, channel 2)
-Note:   Sidebar pad note (0-7 for 8 sidebar pads)
-Velocity: Color index (same palette as main pads: 0-127)
+F0 00 21 7B 01 31 [sidebar_col] [y] [r] [g] [b] F7
+
+Where:
+  F0           = SysEx start
+  00 21 7B     = Manufacturer ID (Synthstrom)
+  01           = Device ID (Deluge)
+  31           = Command: SIDEBAR_LED_CONTROL
+  sidebar_col  = Sidebar column (0-1 for the two columns)
+  y            = Row (0-7)
+  r            = Red value (0-127, scaled to 0-255 internally)
+  g            = Green value (0-127, scaled to 0-255 internally)
+  b            = Blue value (0-127, scaled to 0-255 internally)
+  F7           = SysEx end
 ```
 
-**Note Off (turn off LED):**
-```
-Status: 0x81 (Note Off, channel 2)
-Note:   Sidebar pad note
-Velocity: 0 (ignored)
-```
+**Note:** Sidebar LEDs only support full RGB control via SysEx, not velocity-based colors.
 
 ### Pad LED Control - Full RGB (SysEx)
 
 For precise RGB control:
 
 ```
-F0 00 21 7D 01 20 xx yy rr gg bb F7
+F0 00 21 7B 01 20 xx yy rr gg bb F7
 
 Where:
   F0           = SysEx start
-  00 21 7D     = Manufacturer ID (Synthstrom)
+  00 21 7B     = Manufacturer ID (Synthstrom)
   01           = Device ID (Deluge)
   20           = Command: SET_LED_COLOR
   xx           = Pad X coordinate (0-15)
@@ -173,12 +192,18 @@ Where:
 ```
 
 ### Button LED Control
+Button LEDs are controlled via **SysEx**.
 
+**SysEx Message:**
 ```
-Status: 0x90 (Note On = LED on) / 0x80 (Note Off = LED off)
-Note:   Button note (same as button mapping)
-Velocity: >0 for on, 0 for off
+F0 00 21 7B 01 41 [button_id] [state] F7
+
+Where:
+  button_id = Button identifier (0-39)
+  state     = 0 (Off) or 1 (On)
 ```
+
+**Note:** SysEx (0x41) supports all buttons (including Gold/Mod buttons) and avoids MIDI note conflicts.
 
 ### Encoder LED Control
 
@@ -203,26 +228,26 @@ Control encoder 7 LED: CC 98
 
 **Set Display Text:**
 ```
-F0 00 21 7D 01 10 [text bytes...] F7
+F0 00 21 7B 01 10 [text bytes...] F7
 
 Example: "HELLO"
-F0 00 21 7D 01 10 48 45 4C 4C 4F F7
+F0 00 21 7B 01 10 48 45 4C 4C 4F F7
 ```
 
 **Set 7-Segment Display (Text):**
 ```
-F0 00 21 7D 01 11 [text bytes...] F7
+F0 00 21 7B 01 11 [text bytes...] F7
 
 Maximum 4 characters for 7-segment display.
 Example: "A440"
-F0 00 21 7D 01 11 41 34 34 30 F7
+F0 00 21 7B 01 11 41 34 34 30 F7
 ```
 
 **Note:** The 7-segment display command accepts ASCII text (up to 4 characters), not raw segment data. The firmware will automatically convert the text to the appropriate 7-segment encoding.
 
 **Set OLED Pixels:**
 ```
-F0 00 21 7D 01 12 xx yy ww hh [pixel_data...] F7
+F0 00 21 7B 01 12 xx yy ww hh [pixel_data...] F7
 
 Where:
   xx, yy = Starting position
@@ -239,10 +264,10 @@ F0 7E 00 06 01 F7
 
 **Identity Reply (from Deluge):**
 ```
-F0 7E 00 06 02 00 21 7D 00 01 00 01 01 00 00 00 F7
+F0 7E 00 06 02 00 21 7B 00 01 00 01 01 00 00 00 F7
 
 Where:
-  00 21 7D = Manufacturer ID (Synthstrom)
+  00 21 7B = Manufacturer ID (Synthstrom)
   00 01    = Device family (Deluge)
   00 01    = Device model
   01 00 00 00 = Software version
@@ -251,14 +276,18 @@ Where:
 ## SysEx Command Summary
 
 ```
-Command ID | Description
------------|-------------
-0x01       | Device Inquiry
-0x10       | Set Display Text
-0x11       | Set 7-Segment Display
-0x12       | Set OLED Pixels
-0x20       | Set LED Color (RGB)
-0x21       | Set All LEDs (bulk operation)
+Command ID | Direction      | Description
+-----------|----------------|-------------
+0x01       | DAW -> Deluge  | Device Inquiry
+0x10       | DAW -> Deluge  | Set Display Text
+0x11       | DAW -> Deluge  | Set 7-Segment Display
+0x12       | DAW -> Deluge  | Set OLED Pixels
+0x20       | DAW -> Deluge  | Set LED Color (RGB) - Main Grid
+0x21       | DAW -> Deluge  | Set All LEDs (bulk operation)
+0x30       | Deluge -> DAW  | Sidebar Pad Event (press/release)
+0x31       | DAW -> Deluge  | Sidebar LED Control (RGB)
+0x40       | Deluge -> DAW  | Button Event (press/release)
+0x41       | DAW -> Deluge  | Button LED Control (On/Off)
 ```
 
 ## Usage Example: Ableton Live Remote Script
@@ -278,15 +307,56 @@ def on_pad_pressed(note, velocity):
     # Set LED to green
     send_midi((0x90, note, 48))  # Green color index
 
+def on_sidebar_pad_pressed(sysex_data):
+    """Deluge sent us a sidebar pad press via SysEx"""
+    # Parse: F0 00 21 7B 01 30 [col] [y] [state] F7
+    if len(sysex_data) == 9 and sysex_data[5] == 0x30:
+        col = sysex_data[6]  # 0 or 1
+        y = sysex_data[7]    # 0-7
+        pressed = sysex_data[8] == 0x7F
+
+        if pressed:
+            # Handle sidebar button press
+            if col == 0:
+                # Mute/unmute track
+                session.scene(y).mute()
+            else:
+                # Solo track
+                session.scene(y).solo()
+
+def on_button_pressed(sysex_data):
+    """Deluge sent us a button press via SysEx"""
+    # Parse: F0 00 21 7B 01 40 [button_id] [state] F7
+    if len(sysex_data) == 9 and sysex_data[5] == 0x40:
+        button_id = sysex_data[6]
+        pressed = sysex_data[7] == 0x7F
+
+        # Button 0 = PLAY button
+        if button_id == 0 and pressed:
+            song.play()
+
 def set_led_rgb(x, y, r, g, b):
     """Set specific pad to exact RGB color"""
-    sysex = [0xF0, 0x00, 0x21, 0x7D, 0x01, 0x20,
+    sysex = [0xF0, 0x00, 0x21, 0x7B, 0x01, 0x20,
              x, y, r, g, b, 0xF7]
+    send_sysex(sysex)
+
+def set_sidebar_led(col, y, r, g, b):
+    """Set sidebar LED color (RGB 0-127 range)"""
+    sysex = [0xF0, 0x00, 0x21, 0x7B, 0x01, 0x31,
+             col, y, r, g, b, 0xF7]
+    send_sysex(sysex)
+
+def set_button_led(button_id, on):
+    """Set button LED on/off via SysEx"""
+    # F0 00 21 7B 01 41 [button_id] [state] F7
+    sysex = [0xF0, 0x00, 0x21, 0x7B, 0x01, 0x41,
+             button_id, 1 if on else 0, 0xF7]
     send_sysex(sysex)
 
 def show_text(text):
     """Display text on Deluge screen"""
-    sysex = [0xF0, 0x00, 0x21, 0x7D, 0x01, 0x10]
+    sysex = [0xF0, 0x00, 0x21, 0x7B, 0x01, 0x10]
     sysex.extend([ord(c) for c in text])
     sysex.append(0xF7)
     send_sysex(sysex)
@@ -301,9 +371,10 @@ ControllerModeConfig config;
 config.gridWidth = 8;          // 8 columns
 config.gridHeight = 8;         // 8 rows
 config.gridBaseNote = 36;      // Start at MIDI note 36 (like Push)
-config.buttonBaseNote = 100;
-config.encoderBaseCC = 71;
-config.rowMajorNotes = true;
+config.buttonBaseNote = 0;     // Button LED base note
+config.encoderBaseCC = 71;     // Encoder CC base
+config.rowMajorNotes = true;   // Row-major note layout
+config.receiveDisplaySysex = true;  // Accept display control
 
 controllerModeView.setConfig(config);
 ```
@@ -320,13 +391,15 @@ See [controller_mode_bandwidth_latency.md](controller_mode_bandwidth_latency.md)
 
 - **Exit**: Press SHIFT+BACK to exit controller mode
 - **MIDI Channels**:
-  - Main grid pads/buttons/encoders: `config.midiChannel` (default: channel 1)
-  - Sidebar pads: `config.midiChannel + 1` (default: channel 2)
+  - Main grid pads/encoders: `config.midiChannel` (default: channel 1)
+  - Sidebar pads: SysEx (0x30) - not MIDI notes
+  - Buttons: SysEx (0x40) - not MIDI notes
 - **Hardware Limitations**: Deluge does not support velocity sensing or polyphonic aftertouch
 - **SysEx**: Can be disabled via config for security
-- **Color Palette**: Simple velocity-based palette for quick scripting
-- **Full RGB**: SysEx for precise color control
+- **Color Palette**: Simple velocity-based palette for quick scripting (main pads only)
+- **Full RGB**: SysEx for precise color control (main pads and sidebar)
 - **MIDI Loop Prevention**: Incoming MIDI is only accepted from the same USB cable used for output (see below)
+- **Protocol Design**: Buttons and sidebar pads use SysEx to avoid the 128-note MIDI limitation and prevent conflicts
 
 ## MIDI Loop Prevention
 

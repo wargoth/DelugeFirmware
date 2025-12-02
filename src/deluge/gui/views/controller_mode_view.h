@@ -126,7 +126,6 @@ private:
 	uint8_t displaySegments_[4];                       // 7-seg segment data
 
 	// Pad state tracking
-	bool padPressed_[kDisplayWidth][kDisplayHeight];
 
 	// Helper functions for MIDI mapping
 	int32_t padToMidiNote(int32_t x, int32_t y) const;
@@ -148,6 +147,7 @@ private:
 	void processSysex7SegCommand(uint8_t* data, int32_t len);
 	void processSysexOLEDCommand(uint8_t* data, int32_t len);
 	void processSysexSidebarLED(uint8_t* data, int32_t len); // Sidebar LED control via SysEx
+	void processSysexButtonLED(uint8_t* data, int32_t len);  // Button LED control via SysEx
 
 	// Update display based on MIDI-controlled state
 	void updatePadLEDs();
