@@ -207,6 +207,22 @@ class ControllerModeTest:
             print(f"Error opening MIDI ports: {e}")
             return False
 
+    def flush_input(self):
+        """Discard any pending MIDI messages"""
+        if not self.inport:
+            return
+
+        print("Flushing input buffer...", end="", flush=True)
+        # Give the backend a moment to make messages available
+        time.sleep(0.2)
+
+        count = 0
+        # Drain all pending messages
+        while self.inport.poll():
+            count += 1
+
+        print(f" Done. Discarded {count} messages.")
+
     def pad_to_note(self, x, y):
         """Convert pad coordinates to MIDI note (row-major layout)"""
         return GRID_BASE_NOTE + y * GRID_WIDTH + x
@@ -724,6 +740,9 @@ class ControllerModeTest:
         if not self.setup_midi():
             print("Failed to setup MIDI. Exiting.")
             return 1
+
+        # Flush any pending messages
+        self.flush_input()
 
         # Start MIDI listener thread
         listener = threading.Thread(target=self.midi_listener_thread, daemon=True)
