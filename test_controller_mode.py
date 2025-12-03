@@ -51,24 +51,25 @@ class SysExCommand:
     SIDEBAR_LED_CONTROL = 0x31
     BUTTON_EVENT = 0x40
     BUTTON_LED_CONTROL = 0x41
+    BATCH_LED_UPDATE = 0x22
 
 
 # Color palette (velocity values for different colors)
 COLORS = {
     "OFF": 0,
-    "RED": 5,
-    "ORANGE": 9,
-    "YELLOW": 13,
-    "GREEN": 17,
-    "CYAN": 21,
-    "BLUE": 41,
-    "PURPLE": 49,
-    "MAGENTA": 53,
-    "WHITE": 127,
+    "RED": 5,  # < 16
+    "ORANGE": 20,  # < 32
+    "YELLOW": 35,  # < 48
+    "GREEN": 50,  # < 64
+    "CYAN": 66,  # < 80
+    "BLUE": 82,  # < 96
+    "PURPLE": 90,  # < 96 (Blue/Purple range)
+    "MAGENTA": 100,  # < 112
+    "WHITE": 127,  # >= 112
     "DIM_RED": 1,
-    "DIM_GREEN": 19,
-    "DIM_BLUE": 45,
-    "DIM_WHITE": 64,
+    "DIM_GREEN": 49,
+    "DIM_BLUE": 81,
+    "DIM_WHITE": 113,
 }
 
 # Button mapping (matching controller_mode_view.cpp)
@@ -232,7 +233,7 @@ class ControllerModeTest:
         elif color < 16:
             return (127, 0, 0)  # Red
         elif color < 32:
-            return (127, 64, 0)  # Orange
+            return (127, 63, 0)  # Orange
         elif color < 48:
             return (127, 127, 0)  # Yellow
         elif color < 64:
@@ -287,6 +288,20 @@ class ControllerModeTest:
         msg = mido.Message("sysex", data=sysex_data)
         self.outport.send(msg)
 
+    def batch_set_pad_colors(self, updates):
+        """
+        Batch update pad colors.
+        updates: list of tuples (x, y, color_name)
+        """
+        sysex_data = self._build_sysex(SysExCommand.BATCH_LED_UPDATE)
+
+        for x, y, color_name in updates:
+            r, g, b = self._color_name_to_rgb(color_name)
+            sysex_data.extend([x, y, r, g, b])
+
+        msg = mido.Message("sysex", data=sysex_data)
+        self.outport.send(msg)
+
     def send_7seg_text(self, text):
         """Send text to Deluge 7-segment display via SysEx"""
         sysex_data = self._build_sysex(SysExCommand.SET_7SEG_SEGMENTS)
@@ -296,15 +311,17 @@ class ControllerModeTest:
 
     def clear_all_pads(self):
         """Turn off all pad LEDs (including both sidebar columns)"""
+        updates = []
         for y in range(GRID_HEIGHT):
             for x in range(
                 GRID_WIDTH + 2
             ):  # +2 to include both sidebar columns (x=16, x=17)
-                self.set_pad_off(x, y)
+                updates.append((x, y, "OFF"))
+        self.batch_set_pad_colors(updates)
 
     def animation_rainbow_wave(self, duration=5.0):
         """Rainbow wave animation across the grid including both sidebar columns"""
-        self.log_event("ANIMATION", "Starting rainbow wave")
+        self.log_event("ANIMATION", "Starting rainbow wave (BATCH)")
         colors = [
             "RED",
             "ORANGE",
@@ -318,16 +335,19 @@ class ControllerModeTest:
         start_time = time.time()
 
         while time.time() - start_time < duration and self.running:
+            updates = []
             for x in range(GRID_WIDTH + 2):  # +2 to include both sidebar columns
                 color_idx = (x + int((time.time() - start_time) * 4)) % len(colors)
                 color = colors[color_idx]
                 for y in range(GRID_HEIGHT):
-                    self.set_pad_color(x, y, color)
-                time.sleep(0.01)
+                    updates.append((x, y, color))
+
+            self.batch_set_pad_colors(updates)
+            time.sleep(0.05)
 
     def animation_spiral(self, duration=3.0):
         """Spiral animation from center outward (including both sidebar columns)"""
-        self.log_event("ANIMATION", "Starting spiral")
+        self.log_event("ANIMATION", "Starting spiral (BATCH)")
         self.clear_all_pads()
 
         center_x, center_y = (
@@ -345,16 +365,20 @@ class ControllerModeTest:
                 break
             color = colors[dist % len(colors)]
 
+            updates = []
             for y in range(GRID_HEIGHT):
                 for x in range(GRID_WIDTH + 2):  # Include both sidebar columns
                     manhattan_dist = abs(x - center_x) + abs(y - center_y)
                     if manhattan_dist == dist:
-                        self.set_pad_color(x, y, color)
+                        updates.append((x, y, color))
+
+            if updates:
+                self.batch_set_pad_colors(updates)
             time.sleep(0.15)
 
     def animation_pulse(self, duration=3.0):
         """Pulsing pattern (including both sidebar columns)"""
-        self.log_event("ANIMATION", "Starting pulse")
+        self.log_event("ANIMATION", "Starting pulse (BATCH)")
         colors = ["DIM_BLUE", "BLUE", "CYAN", "WHITE", "CYAN", "BLUE"]
         start_time = time.time()
 
@@ -362,24 +386,25 @@ class ControllerModeTest:
             color_idx = int((time.time() - start_time) * 3) % len(colors)
             color = colors[color_idx]
 
+            updates = []
             for y in range(GRID_HEIGHT):
                 for x in range(GRID_WIDTH + 2):  # Include both sidebar columns
-                    self.set_pad_color(x, y, color)
+                    updates.append((x, y, color))
+
+            self.batch_set_pad_colors(updates)
             time.sleep(0.15)
 
     def animation_test_grid(self):
         """Test pattern showing grid coordinates (including both sidebar columns)"""
-        self.log_event("ANIMATION", "Drawing test grid")
+        self.log_event("ANIMATION", "Drawing test grid (BATCH)")
         self.clear_all_pads()
 
-        # Light up all 4 corners (including both sidebar columns)
+        # Light up all 4 corners (treating sidebar as extension)
         corners = [
             (0, 0),
-            (GRID_WIDTH, 0),
-            (GRID_WIDTH + 1, 0),
+            (GRID_WIDTH + 1, 0),  # Top-right (x=17)
             (0, GRID_HEIGHT - 1),
-            (GRID_WIDTH, GRID_HEIGHT - 1),
-            (GRID_WIDTH + 1, GRID_HEIGHT - 1),
+            (GRID_WIDTH + 1, GRID_HEIGHT - 1),  # Bottom-right (x=17)
         ]
         for x, y in corners:
             self.set_pad_color(x, y, "RED")
@@ -389,14 +414,16 @@ class ControllerModeTest:
 
         # Light up edges including both sidebar columns
         for x in range(GRID_WIDTH + 2):  # Include both sidebar columns
-            self.set_pad_color(x, 0, "GREEN")
-            self.set_pad_color(x, GRID_HEIGHT - 1, "GREEN")
+            updates = [(x, 0, "GREEN"), (x, GRID_HEIGHT - 1, "GREEN")]
+            self.batch_set_pad_colors(updates)
             time.sleep(0.05)
 
         for y in range(1, GRID_HEIGHT - 1):
-            self.set_pad_color(0, y, "BLUE")
-            self.set_pad_color(GRID_WIDTH, y, "CYAN")  # First sidebar edge
-            self.set_pad_color(GRID_WIDTH + 1, y, "MAGENTA")  # Second sidebar edge
+            updates = [
+                (0, y, "BLUE"),
+                (GRID_WIDTH + 1, y, "MAGENTA"),  # Right edge (x=17)
+            ]
+            self.batch_set_pad_colors(updates)
             time.sleep(0.05)
 
     def run_startup_animation(self):
@@ -530,11 +557,35 @@ class ControllerModeTest:
             return
 
         if data[1:5] != bytes(DELUGE_SYSEX_ID):
+            # Check for Identity Reply: F0 7E [device] 06 02 ...
+            if (
+                len(data) >= 15
+                and data[1] == 0x7E
+                and data[3] == 0x06
+                and data[4] == 0x02
+            ):
+                # Check manufacturer ID (Synthstrom: 00 21 7B)
+                if data[5:8] == bytes([0x00, 0x21, 0x7B]):
+                    # Extract version bytes
+                    v1, v2, v3, v4 = data[11:15]
+                    display_type = "OLED" if v4 == 1 else "7-Segment"
+                    self.log_event(
+                        "IDENTITY",
+                        f"Deluge detected! Firmware v{v1}.{v2}.{v3}, Display: {display_type}",
+                    )
+                    return
             return
 
         cmd = data[5]
 
-        if cmd == SysExCommand.SIDEBAR_PAD_EVENT:  # SIDEBAR_PAD_EVENT
+        if cmd == 0x02:  # Identity Reply
+            # F0 7E [device] 06 02 [manufacturer] [family] [model] [v1] [v2] [v3] [v4] F7
+            # Note: The test script receives the full SysEx message including F0/F7
+            # But the check above verifies the Deluge specific header which is NOT present in Identity Reply
+            # Identity Reply is Universal Non-Realtime: F0 7E ...
+            pass
+
+        elif cmd == SysExCommand.SIDEBAR_PAD_EVENT:  # SIDEBAR_PAD_EVENT
             if len(data) >= 10:
                 sidebar_col = data[6]  # 0 or 1
                 y = data[7]

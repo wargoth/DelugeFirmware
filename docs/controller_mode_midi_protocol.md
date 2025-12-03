@@ -205,6 +205,19 @@ Where:
 
 **Note:** SysEx (0x41) supports all buttons (including Gold/Mod buttons) and avoids MIDI note conflicts.
 
+### Batch LED Update (SysEx)
+
+To update multiple LEDs in a single message (efficient for animations):
+
+```
+F0 00 21 7B 01 22 [x1] [y1] [r1] [g1] [b1] [x2] [y2] [r2] [g2] [b2] ... F7
+
+Where:
+  22           = Command: BATCH_LED_UPDATE
+  x, y         = Pad coordinates (x=0-15 for main grid, x=16-17 for sidebar)
+  r, g, b      = RGB values (0-127, scaled to 0-255 internally)
+```
+
 ### Encoder LED Control
 
 Gold encoder LEDs can be controlled individually:
@@ -270,7 +283,9 @@ Where:
   00 21 7B = Manufacturer ID (Synthstrom)
   00 01    = Device family (Deluge)
   00 01    = Device model
-  01 00 00 00 = Software version
+  01 00 00 xx = Software version
+              xx: 00 = 7-segment display
+                  01 = OLED display
 ```
 
 ## SysEx Command Summary
@@ -284,6 +299,7 @@ Command ID | Direction      | Description
 0x12       | DAW -> Deluge  | Set OLED Pixels
 0x20       | DAW -> Deluge  | Set LED Color (RGB) - Main Grid
 0x21       | DAW -> Deluge  | Set All LEDs (bulk operation)
+0x22       | DAW -> Deluge  | Batch LED Update (multiple LEDs)
 0x30       | Deluge -> DAW  | Sidebar Pad Event (press/release)
 0x31       | DAW -> Deluge  | Sidebar LED Control (RGB)
 0x40       | Deluge -> DAW  | Button Event (press/release)

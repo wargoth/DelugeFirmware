@@ -47,6 +47,7 @@ enum class SysExCommand : uint8_t {
 	SIDEBAR_LED_CONTROL = 0x31,
 	BUTTON_EVENT = 0x40,       // Button press/release
 	BUTTON_LED_CONTROL = 0x41, // Button LED control
+	BATCH_LED_UPDATE = 0x22,   // Batch LED update
 };
 
 ControllerModeView::ControllerModeView() {
@@ -130,7 +131,7 @@ bool ControllerModeView::renderSidebar(uint32_t whichRows, RGB image[][kDisplayW
 			int32_t x = kDisplayWidth + sidebarCol;
 			// Use colors set via SysEx sidebar LED control
 			image[y][x] = sidebarColors_[sidebarCol][y];
-			occupancyMask[y][x] = 255; // Full occupancy for full brightness
+			occupancyMask[y][x] = 64; // Match main grid brightness
 		}
 	}
 
@@ -511,6 +512,10 @@ void ControllerModeView::handleMidiSysexForDisplay(uint8_t* data, int32_t len) {
 		processSysexButtonLED(data, len);
 		break;
 
+	case SysExCommand::BATCH_LED_UPDATE:
+		processSysexBatchLEDCommand(data, len);
+		break;
+
 	default:
 		break;
 	}
@@ -563,6 +568,39 @@ void ControllerModeView::processSysexButtonLED(uint8_t* data, int32_t len) {
 	}
 }
 
+void ControllerModeView::processSysexBatchLEDCommand(uint8_t* data, int32_t len) {
+	// Batch LED update: F0 [ID] [device] 22 [x] [y] [r] [g] [b] ... F7
+	// Start at index 6
+	int32_t i = 6;
+
+	// Process chunks of 5 bytes: x, y, r, g, b
+	// Ensure we have enough data (i + 5 <= len)
+	// Note: len includes F7, so strictly we should stop before F7
+	while (i + 5 < len) {
+		int32_t x = data[i];
+		int32_t y = data[i + 1];
+		uint8_t r = data[i + 2];
+		uint8_t g = data[i + 3];
+		uint8_t b = data[i + 4];
+
+		if (x < kDisplayWidth && y < kDisplayHeight) {
+			// Main grid pad
+			// Scale from SysEx range (0-127) to RGB range (0-255)
+			padColors_[x][y] = {static_cast<uint8_t>(r * 2), static_cast<uint8_t>(g * 2), static_cast<uint8_t>(b * 2)};
+		}
+		else if (x >= kDisplayWidth && x < kDisplayWidth + kSideBarWidth && y < kDisplayHeight) {
+			// Sidebar pad
+			int32_t sidebarCol = x - kDisplayWidth;
+			sidebarColors_[sidebarCol][y] = {static_cast<uint8_t>(r * 2), static_cast<uint8_t>(g * 2),
+			                                 static_cast<uint8_t>(b * 2)};
+		}
+
+		i += 5;
+	}
+
+	uiNeedsRendering(this);
+}
+
 void ControllerModeView::sendIdentityReply() {
 	// Send device identity so remote script knows what controller is connected
 	// Format: F0 7E [device] 06 02 [manufacturer] [family] [model] [version] F7
@@ -581,7 +619,7 @@ void ControllerModeView::sendIdentityReply() {
 	                      0x01,
 	                      0x00,
 	                      0x00,
-	                      0x00, // Software version
+	                      display->haveOLED() ? 0x01 : 0x00, // Software version (byte 4: 0=7seg, 1=OLED)
 	                      SysEx::SYSEX_END};
 
 	// Send via active MIDI cable
@@ -871,8 +909,9 @@ void ControllerModeView::processSysexSidebarLED(uint8_t* data, int32_t len) {
 
 	if (sidebarCol >= 0 && sidebarCol < kSideBarWidth && y >= 0 && y < kDisplayHeight) {
 		// Scale from SysEx range (0-127) to RGB range (0-255)
-		sidebarColors_[sidebarCol][y] = {static_cast<uint8_t>((r * 255) / 127), static_cast<uint8_t>((g * 255) / 127),
-		                                 static_cast<uint8_t>((b * 255) / 127)};
+		// Multiply by 2 to get full range, similar to how velocity mapping works
+		sidebarColors_[sidebarCol][y] = {static_cast<uint8_t>(r * 2), static_cast<uint8_t>(g * 2),
+		                                 static_cast<uint8_t>(b * 2)};
 		uiNeedsRendering(this);
 	}
 }

@@ -146,8 +146,9 @@ private:
 	void processSysexDisplayCommand(uint8_t* data, int32_t len);
 	void processSysex7SegCommand(uint8_t* data, int32_t len);
 	void processSysexOLEDCommand(uint8_t* data, int32_t len);
-	void processSysexSidebarLED(uint8_t* data, int32_t len); // Sidebar LED control via SysEx
-	void processSysexButtonLED(uint8_t* data, int32_t len);  // Button LED control via SysEx
+	void processSysexSidebarLED(uint8_t* data, int32_t len);      // Sidebar LED control via SysEx
+	void processSysexButtonLED(uint8_t* data, int32_t len);       // Button LED control via SysEx
+	void processSysexBatchLEDCommand(uint8_t* data, int32_t len); // Batch LED update via SysEx
 
 	// Update display based on MIDI-controlled state
 	void updatePadLEDs();
