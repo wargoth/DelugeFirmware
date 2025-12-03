@@ -125,6 +125,21 @@ private:
 	char displayText_[20];                             // Text for 7-seg or OLED display
 	uint8_t displaySegments_[4];                       // 7-seg segment data
 
+	// Connection tracking
+	uint32_t lastMidiActivityTime_ = 0;
+	static constexpr uint32_t kConnectionTimeoutSamples = 44 * 2000; // 2 seconds
+
+	// Matrix animation state
+	struct MatrixDrop {
+		float y;
+		float speed;
+		uint8_t r, g, b;
+		bool active;
+	};
+	MatrixDrop drops_[kDisplayWidth + kSideBarWidth];
+	void matrixAnimationRoutine();
+	bool isConnected() const;
+
 	// Pad state tracking
 
 	// Helper functions for MIDI mapping

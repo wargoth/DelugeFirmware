@@ -65,6 +65,71 @@ ControllerModeView::ControllerModeView() {
 
 	// Leave display empty so SysEx feedback works immediately
 	// strcpy(displayText_, "CONTROLLER MODE");
+
+	// Initialize drops
+	for (int i = 0; i < kDisplayWidth + kSideBarWidth; i++) {
+		drops_[i].active = false;
+	}
+}
+
+bool ControllerModeView::isConnected() const {
+	return (AudioEngine::audioSampleTimer - lastMidiActivityTime_) < kConnectionTimeoutSamples;
+}
+
+void ControllerModeView::matrixAnimationRoutine() {
+	// Randomly spawn new drops
+	if ((rand() % 20) == 0) {
+		int col = rand() % (kDisplayWidth + kSideBarWidth);
+		if (!drops_[col].active) {
+			drops_[col].active = true;
+			drops_[col].y = kDisplayHeight + 3;                                          // Start above top
+			drops_[col].speed = 0.02f + (static_cast<float>(rand()) / RAND_MAX) * 0.05f; // Slower
+			// Random color
+			drops_[col].r = rand() % 256;
+			drops_[col].g = rand() % 256;
+			drops_[col].b = rand() % 256;
+		}
+	}
+
+	// Update drops
+	for (int i = 0; i < kDisplayWidth + kSideBarWidth; i++) {
+		if (drops_[i].active) {
+			drops_[i].y -= drops_[i].speed; // Move down (decrease y)
+			if (drops_[i].y < -4) {         // Fall off bottom
+				drops_[i].active = false;
+			}
+		}
+	}
+
+	// Clear pads
+	memset(padColors_, 0, sizeof(padColors_));
+	memset(sidebarColors_, 0, sizeof(sidebarColors_));
+
+	// Render drops
+	for (int x = 0; x < kDisplayWidth + kSideBarWidth; x++) {
+		if (drops_[x].active) {
+			int headY = static_cast<int>(drops_[x].y);
+			// Draw trail
+			for (int k = 0; k < 5; k++) { // Trail length 5
+				int y = headY + k;        // Trail follows above (higher y)
+				if (y >= 0 && y < kDisplayHeight) {
+					float brightness = 1.0f - (k / 5.0f);
+					uint8_t r = static_cast<uint8_t>(drops_[x].r * brightness);
+					uint8_t g = static_cast<uint8_t>(drops_[x].g * brightness);
+					uint8_t b = static_cast<uint8_t>(drops_[x].b * brightness);
+
+					if (x < kDisplayWidth) {
+						padColors_[x][y] = {r, g, b};
+					}
+					else {
+						sidebarColors_[x - kDisplayWidth][y] = {r, g, b};
+					}
+				}
+			}
+		}
+	}
+
+	uiNeedsRendering(this);
 }
 
 bool ControllerModeView::opened() {
@@ -97,6 +162,9 @@ void ControllerModeView::focusRegained() {
 
 void ControllerModeView::graphicsRoutine() {
 	// Periodic update - remote script controls everything via MIDI
+	if (!isConnected()) {
+		matrixAnimationRoutine();
+	}
 }
 
 bool ControllerModeView::renderMainPads(uint32_t whichRows, RGB image[][kDisplayWidth + kSideBarWidth],
@@ -361,6 +429,7 @@ bool ControllerModeView::noteOnReceivedForMidiLearn(MIDICable& fromCable, int32_
 	}
 
 	handleMidiNoteForLED(channel, note, velocity);
+	lastMidiActivityTime_ = AudioEngine::audioSampleTimer;
 	return true;
 }
 
@@ -380,6 +449,7 @@ bool ControllerModeView::ccReceivedForMidiLearn(MIDICable& fromCable, int32_t ch
 	}
 
 	handleMidiCCForControl(channel, cc, value);
+	lastMidiActivityTime_ = AudioEngine::audioSampleTimer;
 	return true;
 }
 
@@ -469,6 +539,8 @@ void ControllerModeView::handleMidiSysexForDisplay(uint8_t* data, int32_t len) {
 	if (!config_.receiveDisplaySysex || len < 5) {
 		return;
 	}
+
+	lastMidiActivityTime_ = AudioEngine::audioSampleTimer;
 
 	// Check manufacturer ID (F0 [ID[0]] [ID[1]] [ID[2]] [ID[3]] [command] ... F7)
 	if (data[1] != SysEx::DELUGE_SYSEX_ID_BYTE0 || data[2] != SysEx::DELUGE_SYSEX_ID_BYTE1
