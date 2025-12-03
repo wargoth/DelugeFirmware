@@ -405,7 +405,6 @@ See [controller_mode_bandwidth_latency.md](controller_mode_bandwidth_latency.md)
 
 ## Notes
 
-- **Exit**: Press SHIFT+BACK to exit controller mode
 - **MIDI Channels**:
   - Main grid pads/encoders: `config.midiChannel` (default: channel 1)
   - Sidebar pads: SysEx (0x30) - not MIDI notes

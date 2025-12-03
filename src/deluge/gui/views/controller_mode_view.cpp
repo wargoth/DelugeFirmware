@@ -180,13 +180,6 @@ ActionResult ControllerModeView::padAction(int32_t x, int32_t y, int32_t velocit
 ActionResult ControllerModeView::buttonAction(deluge::hid::Button b, bool on, bool inCardRoutine) {
 	using namespace deluge::hid::button;
 
-	// Special case: SHIFT+BACK exits controller mode
-	if (b == BACK && on && Buttons::isShiftButtonPressed()) {
-		display->displayPopup(deluge::l10n::get(deluge::l10n::String::STRING_FOR_EXITING_CONTROLLER_MODE));
-		changeRootUI(&sessionView);
-		return ActionResult::DEALT_WITH;
-	}
-
 	// ALL other buttons send MIDI - remote script decides what they do
 	sendButtonMidi(b, on);
 
@@ -234,6 +227,7 @@ void ControllerModeView::modEncoderAction(int32_t whichModEncoder, int32_t offse
 }
 
 void ControllerModeView::modEncoderButtonAction(uint8_t whichModEncoder, bool on) {
+	ensureActiveCable();
 	if (!activeCable_) {
 		return;
 	}
@@ -246,6 +240,7 @@ void ControllerModeView::modEncoderButtonAction(uint8_t whichModEncoder, bool on
 }
 
 void ControllerModeView::modButtonAction(uint8_t whichButton, bool on) {
+	ensureActiveCable();
 	if (!activeCable_) {
 		return;
 	}
@@ -261,7 +256,17 @@ void ControllerModeView::modButtonAction(uint8_t whichButton, bool on) {
 // MIDI OUTPUT - Send hardware state to DAW
 //==============================================================================
 
+void ControllerModeView::ensureActiveCable() {
+	if (!activeCable_ && MIDIDeviceManager::root_usb) {
+		activeCable_ = MIDIDeviceManager::root_usb->getCable(0);
+		if (activeCable_) {
+			sendIdentityReply();
+		}
+	}
+}
+
 void ControllerModeView::sendPadNoteOn(int32_t x, int32_t y) {
+	ensureActiveCable();
 	if (!activeCable_) {
 		return;
 	}
@@ -284,6 +289,7 @@ void ControllerModeView::sendPadNoteOn(int32_t x, int32_t y) {
 }
 
 void ControllerModeView::sendPadNoteOff(int32_t x, int32_t y) {
+	ensureActiveCable();
 	if (!activeCable_) {
 		return;
 	}
@@ -305,6 +311,7 @@ void ControllerModeView::sendPadNoteOff(int32_t x, int32_t y) {
 }
 
 void ControllerModeView::sendButtonMidi(deluge::hid::Button button, bool on) {
+	ensureActiveCable();
 	if (!activeCable_) {
 		return;
 	}
@@ -317,6 +324,7 @@ void ControllerModeView::sendButtonMidi(deluge::hid::Button button, bool on) {
 }
 
 void ControllerModeView::sendEncoderCC(int32_t ccNumber, int32_t value) {
+	ensureActiveCable();
 	if (!activeCable_) {
 		return;
 	}

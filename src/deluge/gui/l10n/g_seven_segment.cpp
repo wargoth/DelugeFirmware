@@ -542,7 +542,6 @@ PLACE_SDRAM_DATA Language seven_segment{
         {STRING_FOR_CHORD_KEYBOARD_MODE_ROW, "ROW"},
         {STRING_FOR_CHORD_KEYBOARD_MODE_COLUMN, "COLM"},
         {STRING_FOR_CONTROLLER_MODE, "CTRL"},
-        {STRING_FOR_EXITING_CONTROLLER_MODE, "EXIT"},
     },
     &built_in::english,
 };

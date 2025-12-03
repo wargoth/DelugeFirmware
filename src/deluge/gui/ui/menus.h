@@ -4,7 +4,6 @@
 #include "gui/menu_item/edit_name.h"
 #include "gui/menu_item/filter/param.h"
 #include "gui/menu_item/firmware/version.h"
-#include "gui/menu_item/controller_mode_enter.h"
 #include "gui/menu_item/note/fill.h"
 #include "gui/menu_item/note/iterance_divisor.h"
 #include "gui/menu_item/note/iterance_preset.h"
@@ -57,7 +56,6 @@ extern gui::menu_item::Submenu stemExportMenu;
 extern gui::menu_item::stem_export::Start startStemExportMenu;
 
 extern gui::menu_item::firmware::Version firmwareVersionMenu;
-extern gui::menu_item::ControllerModeEnter controllerModeEnterMenu;
 extern gui::menu_item::sequence::Direction sequenceDirectionMenu;
 extern gui::menu_item::Submenu soundEditorRootMenuMIDIOrCV;
 extern gui::menu_item::Submenu soundEditorRootMenuMidiDrum;

@@ -73,9 +73,9 @@ COLORS = {
 }
 
 # Button mapping (matching controller_mode_view.cpp)
-# ALL buttons now send on CHANNEL 2 to avoid conflicts with pads
+# ALL buttons now send via SysEx to avoid conflicts with pads
 BUTTON_NAMES = {
-    # Main buttons - notes 0-23 on channel 2
+    # Main buttons - IDs 0-23
     0: "PLAY",
     1: "RECORD",
     2: "TAP_TEMPO",
@@ -100,7 +100,7 @@ BUTTON_NAMES = {
     21: "X_ENC",  # Horizontal encoder button
     22: "Y_ENC",  # Vertical encoder button
     23: "TEMPO_ENC",  # Tempo encoder button
-    # Gold encoder buttons - notes 24-31 on channel 2
+    # Gold encoder buttons - IDs 24-31
     24: "GOLD_ENCODER_0",
     25: "GOLD_ENCODER_1",
     26: "GOLD_ENCODER_2",
@@ -109,7 +109,7 @@ BUTTON_NAMES = {
     29: "GOLD_ENCODER_5",
     30: "GOLD_ENCODER_6",
     31: "GOLD_ENCODER_7",
-    # Mod buttons - notes 32-39 on channel 2
+    # Mod buttons - IDs 32-39
     32: "EFFECT_BUTTON_0",
     33: "EFFECT_BUTTON_1",
     34: "EFFECT_BUTTON_2",
@@ -651,7 +651,6 @@ class ControllerModeTest:
         print("  clear    - Clear all pads")
         print("  buttons  - Test all button LEDs")
         print("  corner   - Light up corner pads")
-        print("  status   - Show current state")
         print("  quit     - Exit")
         print("\nPress pads, buttons, or turn encoders on Deluge to see events logged.")
         print("=" * 70 + "\n")
@@ -690,27 +689,6 @@ class ControllerModeTest:
                         self.set_button_led(note, False)
                         time.sleep(0.1)
 
-                elif cmd == "knobs":
-                    self.log_event("COMMAND", "Testing all encoder LEDs (CC 91-98)")
-                    # Cycle through all 8 possible encoder LED channels
-                    for i in range(8):
-                        cc = 91 + i
-                        self.log_event("TEST", f"Lighting Encoder LED {i} (CC {cc})")
-                        # Full brightness
-                        msg = mido.Message(
-                            "control_change",
-                            channel=MIDI_CHANNEL,
-                            control=cc,
-                            value=127,
-                        )
-                        self.outport.send(msg)
-                        time.sleep(0.5)
-                        # Off
-                        msg = mido.Message(
-                            "control_change", channel=MIDI_CHANNEL, control=cc, value=0
-                        )
-                        self.outport.send(msg)
-
                 elif cmd == "corner":
                     self.log_event("COMMAND", "Lighting corner pads")
                     corners = [
@@ -721,51 +699,6 @@ class ControllerModeTest:
                     ]
                     for x, y, color in corners:
                         self.set_pad_color(x, y, color)
-
-                elif cmd == "status":
-                    print(
-                        f"\nPad states: {sum(sum(row) for row in self.pad_states)} pressed"
-                    )
-                    print(f"Button states: {sum(self.button_states.values())} pressed")
-                    print(f"Encoder values: {len(self.encoder_values)} tracked")
-                    print(f"Events logged: {len(self.event_log)}")
-
-                elif cmd == "audit":
-                    print("\n" + "=" * 60)
-                    print("BUTTON ID AUDIT")
-                    print("=" * 60)
-                    # Check for duplicates
-                    all_notes = list(BUTTON_NAMES.keys())
-                    duplicates = [
-                        note for note in set(all_notes) if all_notes.count(note) > 1
-                    ]
-
-                    if duplicates:
-                        print(
-                            f"\n⚠️  WARNING: Found {len(duplicates)} duplicate button IDs!"
-                        )
-                        for note in duplicates:
-                            names = [
-                                name for n, name in BUTTON_NAMES.items() if n == note
-                            ]
-                            print(f"  Note {note}: {names}")
-                    else:
-                        print("\n✓ No duplicate button IDs found")
-
-                    print(f"\nTotal buttons mapped: {len(BUTTON_NAMES)}")
-                    print("\nButton mapping by range:")
-                    print(
-                        f"  Gold encoder buttons (84-91): {[n for n in BUTTON_NAMES.keys() if 84 <= n <= 91]}"
-                    )
-                    print(
-                        f"  Mod buttons (92-99): {[n for n in BUTTON_NAMES.keys() if 92 <= n <= 99]}"
-                    )
-                    print(
-                        f"  Main buttons (100-123): {[n for n in BUTTON_NAMES.keys() if 100 <= n <= 123]}"
-                    )
-                    print(
-                        f"  Others: {[n for n in BUTTON_NAMES.keys() if n < 84 or n > 123]}"
-                    )
 
                 elif cmd == "":
                     continue

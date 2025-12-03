@@ -30,9 +30,10 @@ pip install mido python-rtmidi
 1. **Connect Deluge via USB** to your computer
 
 2. **Enter Controller Mode on Deluge:**
-   - Press SELECT + SOUND
-   - Navigate to "Controller Mode"
-   - Press SELECT to enter
+   - Power off the Deluge
+   - Hold the **LEARN** button
+   - Power on the Deluge while holding **LEARN**
+   - Release **LEARN** once the display shows "CONTROLLER MODE" or similar
 
 3. **Run the test script:**
 ```bash
@@ -111,7 +112,6 @@ Use this checklist to verify Controller Mode functionality:
 - [ ] All 20 buttons generate MIDI note messages when pressed
 - [ ] Button names are logged correctly (PLAY, RECORD, etc.)
 - [ ] `buttons` command lights up all button LEDs in sequence
-- [ ] SHIFT + BACK exits Controller Mode
 
 ### ✅ Encoder Testing
 - [ ] Gold knob encoders generate CC messages (CC 71-78)
@@ -130,7 +130,6 @@ Use this checklist to verify Controller Mode functionality:
 - [ ] Animations run smoothly without lag
 - [ ] Pad presses are registered immediately (<10ms)
 - [ ] No MIDI buffer overruns or dropped messages
-- [ ] Exiting Controller Mode returns to normal operation
 
 ## Troubleshooting
 
@@ -147,9 +146,9 @@ Use this checklist to verify Controller Mode functionality:
 **Problem:** Animations don't appear on Deluge pads
 
 **Solutions:**
-- Verify Deluge is in Controller Mode (not Song/Session view)
+- Verify Deluge is in Controller Mode (display should show "CONTROLLER MODE")
 - Check MIDI output port is correct
-- Restart Deluge and reconnect
+- Restart Deluge (hold LEARN at startup) and reconnect
 - Try `clear` command followed by `corner` command
 
 ### Pad Presses Not Detected

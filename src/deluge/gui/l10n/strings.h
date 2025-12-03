@@ -1113,7 +1113,6 @@ enum class String : size_t {
 
 	// strings for controller mode
 	STRING_FOR_CONTROLLER_MODE,
-	STRING_FOR_EXITING_CONTROLLER_MODE,
 
 	STRING_LAST
 };

@@ -155,6 +155,9 @@ private:
 	void updateButtonLEDs();
 	void updateEncoderLEDs();
 	void updateDisplay();
+
+	// Helper to ensure we have a valid MIDI cable
+	void ensureActiveCable();
 };
 
 extern ControllerModeView controllerModeView;

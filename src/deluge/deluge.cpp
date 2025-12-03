@@ -34,6 +34,7 @@
 #include "gui/views/arranger_view.h"
 #include "gui/views/audio_clip_view.h"
 #include "gui/views/automation_view.h"
+#include "gui/views/controller_mode_view.h"
 #include "gui/views/instrument_clip_view.h"
 #include "gui/views/session_view.h"
 #include "gui/views/view.h"
@@ -831,8 +832,9 @@ extern "C" int32_t deluge_main(void) {
 	// Check if the user is holding down the select knob to do a factory reset
 	bool readingFirmwareVersion = false;
 	bool otherButtonsOrEvents = false;
+	bool enterControllerMode = false;
 
-	PIC::read(0x8000, [&readingFirmwareVersion, &otherButtonsOrEvents](auto response) {
+	PIC::read(0x8000, [&readingFirmwareVersion, &otherButtonsOrEvents, &enterControllerMode](auto response) {
 		if (readingFirmwareVersion) {
 			readingFirmwareVersion = false;
 			uint8_t value = util::to_underlying(response);
@@ -865,6 +867,10 @@ extern "C" int32_t deluge_main(void) {
 		default:
 			if (response >= UNKNOWN_OLED_RELATED_COMMAND && response <= SET_DC_HIGH) {
 				// OLED D/C low ack
+				return 0;
+			}
+			if (util::to_underlying(response) == deluge::hid::button::LEARN) {
+				enterControllerMode = true;
 				return 0;
 			}
 			// If any hint of another button being held, don't do anything.
@@ -909,7 +915,13 @@ extern "C" int32_t deluge_main(void) {
 	midiFollow.readDefaultsFromFile();
 	PadLEDs::setBrightnessLevel(FlashStorage::defaultPadBrightness);
 	setupBlankSong(); // we always need to do this
-	addConditionalTask(setupStartupSong, 100, isCardReady, "load startup song", RESOURCE_SD | RESOURCE_SD_ROUTINE);
+	if (enterControllerMode) {
+		setRootUILowLevel(&controllerModeView);
+		controllerModeView.opened();
+	}
+	else {
+		addConditionalTask(setupStartupSong, 100, isCardReady, "load startup song", RESOURCE_SD | RESOURCE_SD_ROUTINE);
+	}
 
 #ifdef TEST_VECTOR
 	NoteVector noteVector;
