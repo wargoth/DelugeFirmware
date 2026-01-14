@@ -1,0 +1,303 @@
+Hash,Date,Author,Files Changed,Message
+b4b5a5dbe62aedd0aa9abd3ded1c115af9e9e529,Mon Nov 3 15:21:04 2025 +0300,Leonid Burygin,2,Horizontal Menus/ Made pan half-cylinder 1px taller (#4191)
+ce66b99ca0555ded3b9b3637c08c3ae7ee80ab1c,Mon Oct 27 01:23:41 2025 +0300,Leonid Burygin,4,Horizontal Menus/ More subtle sidechain ducking graphics (#4179)
+9d47f9cf36e155f95b25a722c313752606c1d062,Wed Oct 15 19:24:54 2025 -0400,Mark Adams,2,actually release fast for fast release (#4146)
+e878f0cba3577ff0bd5f64acabc162700e53558d,Sat Oct 11 19:07:54 2025 +0300,Leonid Burygin,4,Horizontal Menus/ Do not show max value in the bar (#4134)
+64691ac2462b138e0cb3d3bc0690d65f3c44cb20,Sat Oct 11 10:45:04 2025 -0400,Sean Ditny,2,Note row editor: Remove shift note editing requirement (#4128)
+9588165d9539c977d213a6c84053ee88b827332b,Sun Sep 28 00:59:11 2025 +0300,Leonid Burygin,3,Icons for osc tracking menu (#4096)
+d9229864fd28adbb45e7ab72b347156e97c81665,Tue Sep 2 20:47:25 2025 -0500,Metamere,2,Manage display notification updates for parameter value changes from gold knob encoders (#4064)
+fe1efef403307215ec2a4e9eb3233204c26dab17,Wed Aug 13 02:51:41 2025 -0400,Sean Ditny,2,Replace OLED mod encoder popups /w notifications (#4027)
+b15b6b0277b9c20cdced3ace2e6914fa97eeb52d,Mon Jul 21 10:25:03 2025 -0400,Katherine Whitlock,3,Convert applyAmplitude to Argon (#3439)
+4dfcb6eb81963de0e73d830801972a4dde104081,Mon Jun 23 00:35:49 2025 +0300,Leonid Burygin,2,Horizontal menus: accessibility option support (#3868)
+0b58d23f4dea04ba4e2d9e13089b99c5f7ab48aa,Sat Jun 7 06:33:14 2025 +0300,Leonid Burygin,2,Add shortcut for the note probability (#3806)
+13af5bfca3892353dc8ea3e291360275f6f4ad61,Wed Jun 4 14:12:24 2025 -0700,Casey Tucker,3,MidiProgramMenu::isRelevant() // avoids showing in CV menu (#3813)
+dec14c0b11774705af88f818f5e16e8aa0ebbb2f,Tue Jun 3 20:21:56 2025 +0300,Michael Katz,2,* Implement file operations: add copy and move functionality which will be used to move files around without passing through the host machine (#3775)
+08e49582f63bde687c5ce2a20fca19f051144531,Thu May 29 14:52:12 2025 +0300,Nikodemus Siivola,5,various compiler warnings (#3785)
+c8a0c8f7454e8c741fc3f86e8cf48381d93d8a94,Thu May 22 02:47:47 2025 -0700,Casey Tucker,3,Font 5px: all latters 3px in width (#3745)
+5938b27507891f3572f4c7dbfeea42f957b3b5b8,Tue May 20 13:07:26 2025 -0700,Casey Tucker,4,add 5px font (#3743)
+df2ae9c896feed1c373f43541e8f23f06adb2611,Mon May 19 10:16:48 2025 -0700,Casey Tucker,2,preset: displayed value matches transmitted value (#3737)
+f11ece024492004273f3738abd36c5b3770acb1c,Mon May 19 19:11:02 2025 +0300,Leonid Burygin,3,Horizontal Menus/ Add the unison submenu to the voice horizontal menu (#3733)
+1427cf98783f5a80f8cca2cbfb4377bddb4994b5,Sun May 18 00:21:47 2025 +0300,Leonid Burygin,2,"Feature/ UX improvements for horizontal menu, part 2 (#3716)"
+1a764bccab351b34b74f680cd96ab4608fb4f498,Sat May 17 22:46:16 2025 +0300,Leonid Burygin,5,Feature/ Bitmaps for LFO icons in horizontal menu (#3711)
+7638ca230d94bfa5a125ba75bfa0535a5eadc0d2,Sun Apr 20 17:12:59 2025 -0400,Sean Ditny,5,De-duplicate some transpose logic (#3590)
+40f8af13b35914126bd3d0ddcd54d35cf8a2445e,Sun Apr 20 17:10:32 2025 -0400,Sean Ditny,3,"Feature/ Added Tempo, Root Note and Scale to Audio Export file names (#3620)"
+f57c08cb6dccd30be4c670fab08750baf52db492,Sun Apr 20 16:00:54 2025 -0400,Katherine Whitlock,5,Add Pd folder and initial object (#3596)
+6a8f6ff3a2d1f28b3cba629daa9ad5ca3b3506b9,Fri Apr 11 18:57:18 2025 -0400,Sean Ditny,5,Update shortcuts for randomizing drum samples (#3546)
+7026b6aa28f0eca23807bc93b1b166c826fed30f,Thu Apr 10 17:38:17 2025 -0400,Mark Adams,4,initialize everything (#3582)
+a805ec3c61917bbd7fae1bc3a50b00d888e85e80,Sun Apr 6 08:22:08 2025 -0400,Mark Adams,2,always give arp note a channel if midi or cv (#3559)
+c2b2add0b03927141a4c8829503a3775d4997726,Sun Mar 23 18:50:47 2025 -0500,Metamere,4,Replace loading and saving popups with procedural animations (#3304)
+792b6dbef9e9610dceafcdaf886a07caab752ed5,Sun Mar 23 18:24:52 2025 -0400,Sean Ditny,5,Updated horizontal menu controls (#3506)
+e949f84952e83e5d727664f149e274e232d46548,Fri Mar 21 14:20:15 2025 -0400,Sean Ditny,2,Enable audio output scorlling in arranger view (#3496)
+ba3252117a0495e49d0243dc6391f6377eea87cb,Tue Mar 18 22:19:07 2025 +0100,s.e.s,2,update midi2deluge python scripts (#3487)
+ca2ec2232c167ecf7cf7901dac50ba0eb43ee3d9,Sat Mar 15 16:54:38 2025 -0400,Katherine Whitlock,2,Move Song default initializers to the member declaration (#3458)
+7bff00e7e4e723c3c1db17074b19ed834de56395,Sat Mar 15 16:52:56 2025 -0400,Katherine Whitlock,2,Combine dbt.cmd and dbtenv.cmd (#3469)
+00076cdba498c502a63dbdae74e2df5979179301,Sat Mar 15 16:52:19 2025 -0400,Katherine Whitlock,3,Storage function to std::span (#3441)
+1090b1c8e780c448f8ae7bbe340d13366eb4874e,Tue Mar 11 07:37:07 2025 -0400,Katherine Whitlock,3,Use pragmas for unrolling renderCrudeSawwave (#3435)
+333f93c28a478a28796c4a6e25bc8136e20d654f,Mon Mar 10 18:35:55 2025 -0400,Sean Ditny,2,Add kit arp shortcuts to kit fx menu (#3466)
+c74b16e5ed420cc77cfa7f206a221a5f850cd605,Mon Mar 10 17:25:12 2025 -0400,Sean Ditny,4,Set stutter default to quantized (#3464)
+6652322ebbb646e57938a1b184b85e9fe126f009,Mon Mar 10 11:28:59 2025 -0400,Katherine Whitlock,2,Move arranger default construction values to the member variable declarations (#3462)
+1f45fd418494012b347f575d88fea1e83916fe13,Sun Mar 2 16:22:09 2025 -0500,Katherine Whitlock,4,Convert renderWave to Argon (#3433)
+78295042ee703c8d7605fb6510fb2276ee4af3db,Sun Mar 2 15:54:03 2025 -0500,Katherine Whitlock,4,Convert renderPulseWave to Argon (#3434)
+81d432ac82b158cc08230a966f35e3a268f32014,Sat Mar 1 19:42:39 2025 -0800,Mark Adams,3,gross but functional handling of cv 1+2 (#3432)
+3b4ef139cedda0597f65956eff176a353fa70404,Sat Mar 1 11:44:52 2025 -0500,Katherine Whitlock,5,Remove AlignedBuf and replace with alignas(n) std::array (#3411)
+5066b2729e6552b9dbe40d83ab8ac26674de9139,Mon Feb 24 12:31:03 2025 -0500,Katherine Whitlock,2,Convert voice arrays to std::array (#3414)
+98e95fd916908fa94e0b4c9327f93a753aeec48b,Tue Feb 18 12:22:23 2025 +0100,Raúl Muñoz,3,Remove Volume Post Reverb Send from automation view and midi follow (#3392)
+b50231fe51dc1bf0c5917554ad1f292b34811bab,Sun Feb 16 17:26:18 2025 -0500,Sean Ditny,2,Update midi follow feedback to check context (#3387)
+43da502946790a6a6de2efd6f938892bc0260a58,Sat Feb 15 12:05:12 2025 -0500,Katherine Whitlock,2,clang-tidy: ignore magic numbers (#3384)
+69d3fecfd196e06c3cdb80df32a10979efd52602,Mon Feb 10 18:31:27 2025 -0500,Mark Adams,3,put stealable sample files in stealable region! (#3368)
+0157b8343829df05d43264dacfa233eea517e5ae,Sun Feb 9 23:51:44 2025 -0500,Mark Adams,2,move arm exception tables to sdram (#3355)
+ab579db45c4de0d9b59275901b686ac14897fb59,Sun Feb 9 20:28:04 2025 -0500,Mark Adams,5,Use frunk better (#3353)
+5a31ec450332500a27c4a0bdfd4d0089200d286c,Sun Feb 9 07:55:03 2025 +0100,Queroland,5,MidiFighter Twister Mappings (#3347)
+54bdd9ff00a79b289422dee4b7a62b6db0d7aed5,Tue Jan 7 20:32:44 2025 -0500,Mark Adams,2,show a popup for audio clip type change on 7seg (#3234)
+cb286e9884b92a0419662abf539e1dcf4cc0d268,Tue Jan 7 18:15:25 2025 -0500,Katherine Whitlock,3,Move String backing storage to std::shared_ptr<std::string> (#3219)
+2ad07a5ccc426dc1350bbe72624ce1beaf72d7ba,Mon Jan 6 00:29:37 2025 -0500,Mark Adams,4,Improvement/gma alignment (#3220)
+623f58068a785b08069627b830acc60606b58e3b,Fri Jan 3 22:09:41 2025 +0200,Nikodemus Siivola,3,simplify SoundEditor::beginScreen() and updatePadLightsFor() logic (#3193)
+5a7ca2bc93c18571a694555d6e0ad2c7fa782142,Thu Jan 2 18:49:17 2025 +0200,Nikodemus Siivola,4,"add section number to clip names, copy clip names along with clips (#3195)"
+e2e8a560c7801969681c50275cd2477b5428f0a3,Mon Dec 30 11:27:47 2024 -0500,Katherine Whitlock,3,Change label storage to std::string (owning) (#3179)
+334c8749c1841bcebaae86db95b08d31aaaded3b,Tue Dec 24 18:18:51 2024 -0800,ok-reza,2,Add files via upload (#3137)
+cab4339101e6e5d6a82731c4c0ee9746a28c7fa0,Sun Dec 22 16:42:06 2024 -0500,Mark Adams,2,change chord interval storage from int32 to int8 (#3117)
+e214eee739205439f44494915844dbc5084ddb0b,Fri Dec 20 11:05:45 2024 -0500,Katherine Whitlock,2,Switch globally-initialized C arrays to std::array (#3100)
+442048b44b3ceb47bfe7e5f5538f33e9ebecf362,Tue Dec 17 22:35:59 2024 -0500,Katherine Whitlock,4,Use VCVT for Q31 conversions (#3090)
+c44d2476f4a3db20c9cff28692b3db32fbf71afb,Sun Dec 15 15:39:08 2024 -0800,Mark Adams,4,enable l2 instruction cache only (#3072)
+45d3a29e14a61484e7d23f8e9d68b9a60d825946,Sun Dec 15 13:14:10 2024 -0800,Mark Adams,5,cull softer to avoid clicks since the scheduler makes large buffers safer anyway (#3067)
+15db01aa8aaf0f0a49982deabcb5b1b31347b1d7,Thu Dec 12 15:20:03 2024 +0200,Nikodemus Siivola,5,follow-up to loosening clip-naming restrictions (#3056)
+a10216a4b0223b4dfe38243f2025bdcdd601c705,Tue Dec 10 17:59:00 2024 +0200,Nikodemus Siivola,4,some stray v13 toolchain references in IDE configs updated to v16 (#3039)
+6e3e7a93e49190ff9ea3af5ca8702939819183f6,Mon Dec 9 19:48:59 2024 -0500,Sean Ditny,3,Stop scrolling during playback (#3032)
+189e95edec640f5b68e78c0a3582e859b856447e,Thu Dec 5 21:25:42 2024 -0600,Jamie Fenton,2,Update SysEx code to better support multiple open web browser windows. (#3013)
+5733f49424b61ee563a921a85715f0a9a2a67892,Sun Dec 1 20:19:21 2024 -0500,Mark Adams,2,exit auditioning before renaming drum (#3003)
+5f1e0ad6fbfab9b8c54516bea225415115055dc0,Tue Nov 26 12:47:08 2024 -0500,Katherine Whitlock,4,Remove macros from voice (#2966)
+4dbbbf313326b23d5bf5dde2ae5a139601b4a8a7,Sat Nov 23 16:51:17 2024 -0500,Katherine Whitlock,2,Extract AmplitudeVector creation to own function (#2961)
+aeb19c202a2894239a785f0262c666d79c5a2074,Sun Nov 10 10:25:03 2024 -0500,Sean Ditny,2,Added zoom in out shortcut (#2892)
+62cf399b97dc9ea31b645c9a3f7baddea259f953,Fri Nov 8 21:13:10 2024 -0500,Sean Ditny,2,Add note copy paste shortcut to automation view (#2891)
+c8be99576c0415feab5decba9565be88f6e289e3,Sun Nov 3 16:08:37 2024 -0500,Sean Ditny,2,Toggle note auditioning (#2861)
+f7c19e625b00ff26284ce9dbe53cab939a9c4931,Sat Oct 26 22:20:05 2024 -0400,Sean Ditny,2,Persist learned kit midi input (#2829)
+9331e446772d0741a77629bddc1b04167c78377f,Tue Oct 8 20:12:36 2024 -0400,Sean Ditny,2,Enable shift in note editor (#2789)
+519670e9d17df46c9bb311ff6d3ed1b840583754,Thu Oct 3 14:45:24 2024 -0400,Sean Ditny,4,Replace clip mode with clip settings in song row view (#2750)
+8f6d7dc730de5bd0995ef32c7befa7e300275c92,Sun Sep 29 10:57:22 2024 -0400,Sean Ditny,2,Added song macros to change log (#2724)
+aed93edd40695f91fc409fd4a27a9b5ee6a0f375,Wed Sep 25 07:45:12 2024 +0200,Raúl Muñoz,5,Feature: Autoload sample to synth or drum when LOAD is toggled On while previewing sounds in sound browser (#2676)
+82aac150545ea38409785161e531e722217da925,Mon Sep 16 20:00:20 2024 -0400,Sean Ditny,2,Added ability to load sample to drum (#2650)
+03d755dc8a2f1ae0f8390274de4a8a18b9568d94,Fri Sep 13 16:36:06 2024 -0400,Sean Ditny,3,Add troubleshooting tip for stem export with offline rendering (#2637)
+1d6c19f727ee67c9168d3ec1d0f64db0ad2ca087,Sun Sep 8 14:35:33 2024 -0400,Mark Adams,2,use enter to confirm (#2612)
+6b7aac1c82e46efbfb53702544e7ce48ad660870,Thu Sep 5 15:53:06 2024 -0400,Sean Ditny,3,Update Stem Export Folder Path and File Names (#2572)
+fd28543b47be2a37c60f164433883312529e86dc,Mon Sep 2 19:27:35 2024 -0400,Mark Adams,2,print error messages (#2563)
+c451f7c47281b30a88bfe0a14d461382977930ed,Sat Aug 31 18:36:43 2024 -0400,Mark Adams,2,keep audio recording track through synth change (#2533)
+670b7baef74d2260a9c069aad27c64e3232a6751,Sat Aug 31 01:09:40 2024 -0400,Mark Adams,3,clear audio output source when track is deleted (#2528)
+b36bc6cf5586a83b46224b3a9af9b51b3a65234f,Wed Aug 28 10:38:29 2024 -0400,Mark Adams,2,update site for beta (#2512)
+506588f487b557c26e8e3943b81dd4bd950fbabb,Mon Aug 26 12:50:53 2024 -0400,Mark Adams,2,ensure file paths are unique in both temp and main folders (#2500)
+40639251c9b4f6a7b22c705ec1153b1c22cf37e0,Sat Aug 24 15:58:20 2024 -0400,Mark Adams,2,split declaration from  initialization to avoid duplication (#2489)
+aed471f86457ff5e64d5c5a4fd8193ccf2a5d3f6,Sat Aug 24 11:29:12 2024 -0400,Sean Ditny,2,Start Arranger Playback from Scroll Position while in Cross Screen Mode (#2479)
+09d26c7085dd1b5356b7ae0df870a892ba79825d,Wed Aug 21 16:39:51 2024 -0400,Sean Ditny,3,Stem Export: Added 60 second recording silence timeout (#2464)
+c0189f7b767754b32c3d030c0f1fe562307ec43d,Tue Aug 20 17:00:24 2024 -0400,Madeline Scyphers,4,Allow ColumnControlsKeyboards to opt out of sidebar columns (#2448)
+5fa01997d795acbe420cb072e0adf264eecec38b,Sun Aug 18 20:08:50 2024 -0400,Sean Ditny,3,Update pad greyout for Song Macro Config Mode (#2438)
+6d231436bc330f7680693a22d02aa322a309c041,Sun Aug 18 16:27:31 2024 +0300,Nikodemus Siivola,3,Enumeration & Selection don't need SoundEditor::menuCurrentScroll (#2451)
+17aa6dd7a7e0d59f7b1016dac00de09a4ddae4aa,Sat Aug 17 20:05:16 2024 +0300,Nikodemus Siivola,2,Submenu doesn't need SoundEditor::menuCurrentScroll (#2450)
+f34b97d3ea6e6728c33afbdc0beac7ce9d7a52a4,Sat Aug 17 19:56:07 2024 +0300,Nikodemus Siivola,2,MultiRange doesn't need SoundEditor::menuCurrentScroll (#2452)
+de428b94041e2e7943a7c44dc02a335dfa15758e,Sat Aug 17 19:55:28 2024 +0300,Nikodemus Siivola,2,Devices does't need SoundEditor::menuCurrentScroll (#2453)
+3dbbe90e1b9d5c0d313e602b15fa01ec75928fa5,Fri Aug 16 17:27:12 2024 +0300,Nikodemus Siivola,2,Toggle doesn't need SoundEditor::menuCurrentScroll (#2449)
+c67eb3679242059d0be7d3f10d09b9d2e5203b37,Tue Aug 13 21:41:15 2024 -0400,Sean Ditny,4,Restore new clip and audio clip conversion to song row view (#2432)
+30a9f5fcbb70d956cb188e4dbe53e1076ffe615f,Sat Aug 10 22:12:44 2024 -0400,Mark Adams,2,don't apply doublings (#2420)
+8e684437284ab8cbfd5a61df8882e3a5d75873c4,Thu Aug 8 14:02:33 2024 -0400,Mark Adams,3,create path for new recordings (#2411)
+0fd57d5ec7b4d8d350d5c62bcf85067b3629eb83,Wed Aug 7 22:48:10 2024 -0400,Mark Adams,5,if instrument not on card delete it from hibernation on change (#2401)
+d79d059beae896acfb8f51d20c8201a2636bba36,Wed Aug 7 22:46:00 2024 -0400,Mark Adams,4,don't change reverb until song swap happens (#2404)
+e8357f3b501ef2202c11145fa692fd8f197b4a86,Wed Aug 7 18:07:56 2024 -0400,Mark Adams,5,make names match section mode names (#2399)
+4f03ac8fcafb989175019c929698622249e4d1ab,Sat Aug 3 13:42:14 2024 -0400,Mark Adams,3,Set recording name according to the source (#2368)
+9bee8c6034c129b03f8026a3f0eabef24b665a8b,Sat Aug 3 13:34:33 2024 -0400,Mark Adams,2,respect record arming for auditioning (#2374)
+bf6cb351f8f2d1b034af59cd6351a89d6839237a,Sat Aug 3 10:29:26 2024 +0300,Nikodemus Siivola,3,adjust vertical scroll to account for scale shrinking & growth (#2364)
+8301cfcad0f5760263321a85d4907d71d9dee0a8,Thu Aug 1 23:08:07 2024 +0300,Nikodemus Siivola,5,simplify Song::setRootNote() (#2350)
+dbea7bee44e48eb2a68253637c66e353069b7c45,Tue Jul 30 16:13:00 2024 +0300,Nikodemus Siivola,3,simplify some YNote-stuff (#2356)
+0f4dd7cd48d52faf01d4922767da5c4fd5e38252,Sun Jul 28 15:06:36 2024 -0400,Mark Adams,3,remove mpe zone auto learn (#2344)
+ab4f0f47b90ac5feca24e5e3dc5e26573495b25e,Sat Jul 27 21:25:35 2024 -0400,Mark Adams,3,init audio file manager when sd read successfully (#2338)
+2f3a5fff9294c4792ee3f11a311a8d4ffdbe2231,Tue Jul 23 16:07:58 2024 -0400,Mark Adams,2,switch to default initialization (#2328)
+9c7d66a09397ccb51b3d898f263400d427b614ac,Sat Jul 20 18:06:36 2024 -0400,Mark Adams,5,Feature - offline rendering (#2314)
+acb34525dbaac64a60519af3a344ba12e250eaf4,Tue Jul 9 21:25:34 2024 -0700,Sapphire Koser,4,chore: delete empty InstrumentClipMinder::opened (#2271)
+cf7e00dcd1e9940f64cf227758703e4694f450ab,Mon Jul 8 17:31:20 2024 -0700,Sapphire Koser,4,chore: delete predeclarations for a class that doesn't exist (#2258)
+6e7f4f8c7229a903dcd6a71432b775a26ede3ab8,Mon Jul 8 18:26:25 2024 +0300,Nikodemus Siivola,2,Windows configuration for VS code (#2266)
+b95123bbd013ccf7505bd7c99da6270a5c66d712,Sun Jul 7 23:09:31 2024 +0300,Nikodemus Siivola,4,delete dead code: UI_MODE_TAP_TEMPO (#2265)
+f3fbda960fc0212106b2f18bd43a5519251ba96e,Sat Jul 6 13:45:36 2024 -0400,Mark Adams,3,Don't send multiple clocks at once (#2145)
+a5635714448b064554f29fe0e15d203a5fde82e0,Sun Jun 30 18:35:40 2024 -0700,Sapphire Koser,3,site: update for 1.1 release (#2197)
+ab557a5aab31d874c16ace3a0147a9e211d5bf6c,Sat Jun 29 11:09:53 2024 -0400,Mark Adams,2,save when audition pressed while save held (#2198)
+8aa506ff864e3bee7e3faa623e42904841d6a068,Fri Jun 14 18:34:00 2024 -0400,Sean Ditny,2,Remove encoderAction flag (#2129)
+3219c70db70c924d650ecb0cc52e291c93d957d4,Sat Jun 15 00:33:50 2024 +0200,Raúl Muñoz,5,Persist chord memory to song file (community) (#2120)
+e5b836b214ca2bb254338928e2e3bd760c1c593a,Sun Jun 2 20:35:54 2024 -0400,Mark Adams,2,Use conditional tasks for song loading instead of scheduled callbacks (#2082)
+368a871e3246b911d14054e99b1bf3f9a6fee621,Sun Jun 2 18:29:56 2024 -0400,Mark Adams,3,Os/conditional tasks (#2071)
+45b53d1fb78c494b499419f0724e216a446b261c,Wed May 29 21:55:37 2024 -0400,Mark Adams,5,Add names and usage stats to task manager (#2047)
+eb97f3d17859888a7e55a71fb47c0ce38130f8d2,Wed May 29 18:34:27 2024 -0400,Mark Adams,3,Scheduler - reconfigure minimum time to be a gauranteed backoff between calls (#2029)
+9d87f501c9aaa7e068ce1046c70c5e0166318bbd,Mon May 27 19:16:14 2024 -0400,Mark Adams,2,use inverse multiplication instead of division (#2044)
+2e9b543a342d7485d9295793ff259b29e170510a,Sat May 25 16:19:50 2024 -0400,Mark Adams,3,Load songs asynchronously (#1932)
+420191901a397093e42e88907035c69637817258,Sat May 25 00:27:21 2024 +0300,Nikodemus Siivola,3,encoders: delete dead code (#2020)
+39145d0401af9b599035301abc4700366accf1be,Sun May 19 20:29:11 2024 -0700,Jeff Way,5,Ease timeline zoom level restriction (#1962)
+4cf34f26344d094c9dc62ece59d5f3508701c569,Sat May 18 13:22:20 2024 +0200,Mark Adams,2,TaskScheduler/FillBusyWaitTime (#1925)
+9f20b5da797191ad28118fe5c96014a8b6a02fd6,Tue May 14 19:12:28 2024 +0300,Nikodemus Siivola,2,LFO: S&H and random walk step properly on overflow (#1926)
+84f52e9b1a9f1e8191e63fe8dd7af4fdf64ac4dd,Mon May 13 00:07:50 2024 +0200,Raúl Muñoz,2,Make cycling from 5-note scale to 7-note scale non destructive (remember note positions) (#1895)
+c9d98050428f3e55803840709a9b5591707a37e7,Fri May 10 15:51:00 2024 -0400,Sean Ditny,2,Automation View Shuffle couple functions around (no code changes) (#1883)
+d8cb26cc979f979a33d1a4728bcaf9cb908edddd,Fri May 10 18:10:55 2024 +0300,Nikodemus Siivola,2,use array initializers in scale code (#1880)
+4be23644822a258bc39fd0cccb100fc10a87244b,Fri May 10 10:18:15 2024 -0400,Mark Adams,3,Scheduler/runonce tasks (#1879)
+125dee83159ebac546f65183d2e96758e726f8bd,Sun May 5 17:32:35 2024 -0400,Mark Adams,3,use midi follow cc checking for loopback to make automation straightforward (#1828)
+4259b822906899565a0168d422bd7467b00352e6,Fri May 3 20:14:09 2024 -0400,Sean Ditny,2,Added kScrollTime constant (#1825)
+cdc1c057349c15ad9dd3117a84017a5c1ed1343b,Fri May 3 13:30:42 2024 -0700,Sapphire Koser,4,song: use 1.0 base makeup gain for compressor (#1767)
+ed6393d08ea62bec98ad08f588e2fd53ecfd5ce4,Mon Apr 29 23:06:07 2024 +0200,Raúl Muñoz,2,Always read the old “mode” arp param (later overriden by new params) (#1800)
+50fb9965ba56d384f673300148cc2dc885acf852,Sat Apr 27 19:25:36 2024 -0400,Mark Adams,4,cache whether the instrument is on card to avoid re checking (#1783)
+d9e2d630df8f257d94f8f46bc2eb919882d3ef0f,Tue Apr 23 08:32:32 2024 -0700,Sapphire Koser,4,genfile check: use git diff instead (#1757)
+7949a07c16b1c3b5ca86dcc6344cc1f6c7f97f9f,Sat Apr 6 11:55:41 2024 -0400,Mark Adams,2,rudimentary api for os timer (#1666)
+202fadbc1bf3c4e5916573d485c1034c9d1d124a,Wed Apr 3 10:32:36 2024 -0400,Sean Ditny,2,Update VU meter clipping threshold (#1657)
+10a751fe12e174e337ba1fb0ed4a4af8d7055b4f,Wed Apr 3 07:29:11 2024 -0700,Sapphire Koser,4,remove dev vars (#1630)
+5f064365c49b1b9b7fad18bb2e2def3bf2d40935,Wed Apr 3 00:53:54 2024 -0700,Sapphire Koser,3,rms compressor: increase base makeup gain (#1655)
+934ea0c7578b8f47d9c3cf6d8a67b6233ade07b2,Mon Apr 1 11:29:11 2024 -0400,Sean Ditny,2,Update default slice mode (#1602)
+122407d20e8bd7c1feb9500a4d63d046f3ac0f09,Mon Apr 1 11:21:09 2024 -0400,Sean Ditny,2,Display master compressor param names (#1613)
+df0d8903380afa618b84dffa116053a28f545e7c,Mon Apr 1 18:15:19 2024 +0300,Panu Matilainen,2,"Make the SysEx identity reply standards compliant, doh (#1640)"
+d30653ebe2c831679dff36bb0b8a76b98ce7471e,Mon Apr 1 12:55:43 2024 +0300,Panu Matilainen,5,Implement Universal SysEx Identity response (#1639)
+951a1c0fcaf980c5d942d150f379e677ca6df9ef,Sun Mar 31 20:25:01 2024 -0400,Mark Adams,2,dont render compressor when threshold is zero (#1628)
+f3f9b31e90c8680f7cd7753d01cb6e74b708a7c7,Sat Mar 23 20:11:47 2024 -0400,Sean Ditny,3,Add compressor threshold to automation view list (#1573)
+57f97410f12804ee839cca44fcef1754f776f5e3,Sat Mar 23 16:31:43 2024 -0400,Sean Ditny,3,Update session view detection (#1566)
+d490c0b2690ab8f8a636cf1182afe1a873e7d0e2,Tue Mar 19 17:00:34 2024 -0400,Sean Ditny,3,Add Arp Rhythm to Automation View Select Scrolling (#1501)
+ee8a3f0596dd439546dd2103b09269d3a491e244,Tue Mar 19 14:20:11 2024 -0400,Sean Ditny,3,Blink Play Button When CPU Direness High (#1506)
+f0fe228ec553f173ff82b3d2a5ff3cd666ac410b,Sun Mar 10 12:52:49 2024 -0700,Sapphire Koser,2,loop lock: prevent start point disable during locked loop movement (#1461)
+b3184bba5323bf5b88fd29bb75cd9ba3a9133bc7,Sat Mar 9 19:13:31 2024 +0100,Moritz Weigt,2,"dbt Loadfw: add write to file option, remove c version (#1458)"
+e3427c5cd09c0f8148de9766acb946defced9d0f,Thu Mar 7 14:46:41 2024 -0500,Mark Adams,2,sample constants to be signed (#1449)
+ff81816b839c0da50c1ddcfda79616efa200007f,Thu Mar 7 00:18:47 2024 +0800,Jonathan,2,default pad brightness : 4-100 value from UI with 4-step offset (#1427)
+980d57ff9633fa25ddb347fee3f707e46085feac,Mon Mar 4 03:30:40 2024 +0800,Jonathan,3,failsafe mechanism for startup song feature (#1413)
+6b90703fbc172fd1a85958ed8502b87d2f727054,Sun Mar 3 05:42:54 2024 +0800,Jonathan,4,Make startup song feature more robust (#1400)
+306f24159c8d5b4b95c33b72374f287ef2e92840,Tue Feb 27 14:14:18 2024 -0500,Sean Ditny,2,Update PR #970 in community features (#1360)
+a343a10eda39cf59009fd806b2d363fe80204d65,Sat Feb 24 18:20:26 2024 -0500,Mark Adams,4,Remove recursive render and include attempted audio clips in min voice calculation (#1316)
+5a4476cb1d7fe50bf73289cabae3786f00a34b66,Fri Feb 23 21:33:09 2024 -0500,Sean Ditny,2,Review IO folder comment placement for better code wrapping (#1300)
+ebae0ef8ea15f3d098f313a0615d004cdd62f26d,Sat Feb 24 03:08:48 2024 +0100,Raúl Muñoz,4,Flash OMODE and NMODE for 7Seg users when setting CUSTOM arp mode from pad shortcuts (#1309)
+f9b9ac35a1b080ad05ab75ea8195fe9814eac7b2,Fri Feb 23 10:05:31 2024 -0500,Mark Adams,3,tweak thresholds (#1299)
+c286ad1752f2c9f895d3f6a33368e051393b2f6c,Wed Feb 21 03:30:06 2024 -0500,Katherine Whitlock,4,Convert LATE_START_ATTEMPT enum to enum class (#1283)
+08edab5042b77165ccacc491c05e0d4a45a9468a,Mon Feb 19 19:22:32 2024 -0600,Jamie Fenton,2,Remove unused routine (#1262)
+d259263dececf5060d5f388c5a804a7c1598902c,Tue Feb 13 16:18:12 2024 -0500,Mark Adams,2,Remove constructor for column keyboard since song/instrument doesn't exist yet from a cold boot (#1224)
+e04ec5146e0928f69432be4c68cb9159624479aa,Sun Feb 11 10:17:24 2024 -0500,Mark Adams,2,correct cast in get current kit (#1207)
+916e94ba50b9fa900b47b75051f3a31189386422,Fri Feb 9 18:57:27 2024 +0100,Raúl Muñoz,4,Enable sysex logging to console by dbt command (#1199)
+450e2c800329156a048d1b4e31e9afc2dc8bbb13,Thu Feb 8 18:55:29 2024 -0500,Sean Ditny,2,Set correct playmode for alternate arranger views (#1193)
+2b200bdc60c6f7036c53cc8124f6aa75313f0566,Fri Feb 2 16:16:01 2024 -0500,Sean Ditny,2,Enhancement / MIDI Follow - Allow unlearning MIDI Follow Channels with Select Encoder (#1150)
+416d140d576c62d0ddf3c6f38ee0ef49972773ef,Sun Jan 28 13:22:51 2024 -0500,Katherine Whitlock,2,Add util::map and expand Mutable parameter range (#1102)
+3e6b6c33adaf27410ca711a45d49058bc26d2c2e,Sun Jan 28 12:45:02 2024 -0500,Sean Ditny,2,Ensure valid param collection (#1041)
+4baa5bdd8a365ca4715e7f66b26e774dcbcec60c,Thu Jan 25 15:54:35 2024 +0100,Raúl Muñoz,2,Update TouchOSC template using midi channel 15 (as the Loopy Pro template) (#1068)
+6ecec2b63b547593fd0b571f226c999eb7563b34,Fri Jan 19 14:53:17 2024 +0100,Raúl Muñoz,5,Feature: NOT FILL probability iteration for notes (#994)
+fefa183052d5a9a905df3287e4305ea8e6f1e3a7,Fri Jan 19 06:15:33 2024 +0100,M0R172,4,Issue #471 Saving settings to SD card can silently fail if card is in RO mode  (#1001)
+316279c5e091cdeb7d50828e407789966fb53abc,Tue Jan 16 19:52:06 2024 +0100,Raúl Muñoz,2,Added Loopy Pro template for Midi Follow (#976)
+b1f035bab58c254c8b68a3e7c2dc3dc71df8ca28,Tue Jan 16 10:20:48 2024 -0800,Reed Koser,4,dbt: only do python setup if the toolchain is freshly unpacked (#981)
+6af3c7cae12a105bae71c5413cedfe6eec6bca7b,Fri Jan 12 09:55:43 2024 -0500,Katherine Whitlock,3,Add lowercase rendering for 7SEG (#783)
+df942a0d806c1c7f6f5047b6d3ed68c59c6e5e80,Wed Jan 10 23:05:34 2024 -0500,Sean Ditny,3,Set Global Effectable Default Mod FX Type to Disabled (#945)
+6cd011f78240e82c6d82ac219071b629a0b51f06,Sun Jan 7 18:25:52 2024 -0800,Reed Koser,2,view: only check param kind when autoparam valid (#928)
+b9d6b905095637fbd2b273cc3ec7eca64456134b,Sat Jan 6 21:47:28 2024 -0500,Mark Adams,3,ensure clip is an instrument before setting edited flag (#922)
+da5d731cb37b97db64327bfdf7107cf91a839678,Tue Jan 2 23:40:08 2024 -0500,Sean Ditny,2,Remove Mod FX Type Menu & Invalid Menu Shortcuts (#908)
+fec359a42fed7667e204d1acb798f0eabfa6ee81,Wed Dec 27 10:36:20 2023 -0500,Sean Ditny,5,Remove Some Params from Global FX Menu's and from Automation View (#886)
+e2e44453b7cbcea7580eafbfb7c327a6af761b7f,Wed Dec 27 00:02:05 2023 -0500,Mark Adams,2,Seperate receiving midi from matching in kits and synths (#862)
+fa1097063ad1b936ea3b53e6a38d759862d4a0cc,Sun Dec 17 13:40:58 2023 -0500,Mark Adams,4,move user friendly MPE match function from melodic instrument to learned midi (#833)
+480c85a26250b2368e7bd84b5cdefe0e99e45f6e,Sat Dec 16 12:38:43 2023 -0600,Sasha Devol,3,Allow single row copy. Allow gentle paste (#805)
+3d583dbd6c0f87d6e7cbb1b987e67034b7155d2a,Thu Dec 14 21:35:44 2023 +0100,Raúl Muñoz,3,Added new scales (#826)
+6db3b3b317119d6489f2d9e70d40f6625d7143ca,Thu Dec 14 05:11:45 2023 +0100,Tobias Pisani,2,session view: Allow clips to be selected while shift is held (#817)
+fe31a4f9b112890b163157969097788eb81314ff,Sun Dec 3 22:51:51 2023 +0100,Paul Freund,2,Update blackbox image link
+56cc8a0e09aee884a786035ec8acdcd76d992933,Sun Dec 3 21:42:29 2023 +0100,Paul Freund,3,Proposal for release page (#776)
+2cadb0a9e5f918d46c24f82fb63e003ef82597a5,Sat Dec 2 22:45:27 2023 +0100,Tobias Pisani,3,Turn haveOLED and have7SEG into non-virtual calls. (#757)
+e92f6b216174d4a2de2de9afc037da9843d9805b,Sat Dec 2 13:24:13 2023 -0500,Mark Adams,5,rescale metronome volume (#780)
+aa1f45a69416469d4c0dfbd9c2c6b4ef4e8dc069,Sun Nov 26 03:54:54 2023 +0100,Tobias Pisani,2,Use the NAME shortcut in audio clips to rename the audio track. (#754)
+20d21f18f9d9c77d22d1a93ae1546167e6e60187,Fri Nov 10 00:17:26 2023 +0100,Paul Freund,3,Disable all interrupts but INTC_ID_TGI2A (#705)
+f7c6d449c8bdab2af073e4a340fbc2cf5c5f7bbe,Thu Nov 9 10:05:10 2023 -0500,Katherine Whitlock,4,664 Hard crash with shift+scroll in small menus (#698)
+c9c64d23ec726530ecfd469f32f6951dcedd9371,Wed Nov 1 15:09:03 2023 -0400,Mark Adams,5,Feature/fm filters (#665)
+647a1182cee13959a335814e12fd8b6e04cd4502,Mon Oct 30 16:03:32 2023 +0100,Paul Freund,4,Added feature to show last return addresses on grid going into fault handler
+c0e7b4c3bb2213db1c70587abed5277d75040bc0,Fri Oct 27 14:39:11 2023 -0400,Sean Ditny,2,Enable Stutter Automation (#653)
+8f4163a2287efd30c21baf500197539f29bdf022,Fri Oct 13 18:07:14 2023 -0400,Mark Adams,2,Remove gitmodules as unused (#621)
+717f3770abb2a6539fb9d41d42dc942e63d79c91,Fri Oct 13 16:34:00 2023 +0200,Paul Freund,2,Make sure we flush cache before UART DMA and align the transferred OLED image with cache line size
+d67505b63362a2dc82acf2a459ae937aaa6396db,Wed Oct 11 19:31:58 2023 +0200,Paul Freund,4,Incorporated changes according to spec from recent Renesas RZA1LU_BlinkySample that match warnings in the spec
+35dae470a40cffff7a7500bba01add79c1e1ead9,Tue Oct 10 20:40:49 2023 -0700,Reed Koser,3,feat: display PIC version on version + ROOMSIZE (#604)
+459c28843485601397c24e9f1f4f71eb65940bc4,Fri Oct 6 14:58:24 2023 -0400,m-m-adams,4,move chunkware to its own files
+3fb74267c6485f83a938b2e9231be7ce6b134745,Fri Oct 6 14:46:21 2023 -0400,m-m-adams,5,change comp interface to use ints instead of floats
+03f786875bf2cb58d9baead44afe0480a4db5e7f,Fri Oct 6 13:52:29 2023 -0400,m-m-adams,2,"double to float, 10 percent speedup"
+693f872e7b427aecc18e2b442f57d7d3c802135a,Tue Oct 3 23:14:52 2023 -0400,Sean Ditny,2,Automation View: Disable mod LED's in Automation Editor (#589)
+c6db94d720493d5cfc57e6ebe1662ee7c35e01d2,Sat Sep 30 14:21:50 2023 -0400,m-m-adams,2,remove unused imports on memory
+c3e3749f48a2c9efb4325e3de517c6b01234162b,Sat Sep 23 21:25:07 2023 -0400,Mark Adams,2,Restore usb midi functionality (#569)
+c533ee9962cddace9d91611c64f9b66c633c72f4,Fri Sep 22 16:35:01 2023 +0200,Paul Freund,3,Use system method for enable/disable IRQ with memory barrier and make sure we don't disable interrupts processing in audio routine if coming from an interrupt
+080d1b8b1f7f0d032217c34f9d856c9325271d5e,Thu Sep 21 20:47:45 2023 +0200,Paul Freund,2,dbt format and some more commenting
+4ee106a39630c73e2d486039d821d6e97111becb,Thu Sep 21 19:22:13 2023 +0200,Paul Freund,2,Move runtime feature settings into SDRAM (5k)
+ed8fa5437587434a12e16de874e52a1964f0d5be,Thu Sep 21 18:57:47 2023 +0200,Paul Freund,2,"Move data up, noload and helpful comments"
+ccf117bb7222964e60a133663f843c4b7ddd1bdc,Wed Sep 20 21:43:32 2023 +0200,Paul Freund,2,dbt format and additional comment
+0da30f59b5b0dff6eefa2b6e65850405d40ce5d1,Wed Sep 20 21:31:14 2023 +0200,Paul Freund,4,Packed frunk full of data
+7498bc23db471b925767c225ffc1a40a972df403,Wed Sep 20 20:52:28 2023 +0200,Paul Freund,2,Added frunk area
+c614b5978fa708ffeae4e112768b5175ecf43c3f,Wed Sep 20 16:44:07 2023 +0200,Paul Freund,3,Added relocated sdram data section
+c9cfbb2a5be96f140512245ab4fef4cee2371a50,Tue Sep 19 16:08:00 2023 +0200,Paul Freund,2,Add output of compilation size and nmdump containing a list of all symbol sizes
+a5d231006891060979f7710d7c9958913b72c79f,Tue Sep 19 16:06:18 2023 +0200,Paul Freund,2,Make sure getRegion always returns the right region or freezes
+51c91955949749e0e72854b710a92e4cc6d21349,Mon Sep 18 21:45:11 2023 -0400,Katherine Whitlock,4,Convert SIMD macros to functions (#550)
+2cc4b8ba71e47fddfff0b3512ce0c64da7aabf7f,Thu Sep 14 18:58:11 2023 -0400,m-m-adams,2,unassign reasons before assigning new ones from starting playback
+e1e9231ae6440e90b76596871ca393157c400639,Fri Sep 8 19:26:43 2023 -0400,m-m-adams,4,More robust gma detection
+206b972368e27a5c134f24a8fc5b0f478e03bc9d,Tue Sep 12 11:48:13 2023 -0400,m-m-adams,2,bypass effects if clip is not active
+4a85cbd346fe1aaf10ea2f8cb647f517051c006a,Sat Sep 2 10:53:09 2023 -0400,m-m-adams,5,remove unnecessary function parameter
+6118f2adac0ff0a0bd6236e32e0839ce6ba94bdc,Tue Aug 29 21:47:42 2023 -0400,m-m-adams,4,enable audio output cloning for continuous layering
+8c38b5beb9bec488cb371925e9433006e002c751,Mon Aug 28 12:03:19 2023 -0400,seangoodvibes,2,Updated threshold to 5
+2ab008b4fc51180ab654c0d82ae1982739d86bbc,Sun Aug 27 22:44:14 2023 -0400,Sean Ditny,3,Automation view: hold open selection mode value popup
+9f7cbdd19c37c8ee2da863138c7b3edd9bb92306,Sun Aug 27 22:32:15 2023 -0400,seangoodvibes,2,Adjust threshold for midi knob sync
+6c29fb40e102b801c6b544d8b98e9c850d646f81,Sun Aug 27 17:18:53 2023 -0400,Sean Ditny,2,Automation view: handle very rapid region entry
+f47aba1c7d5c407d44fbd34a9ff9b70f4ae5a520,Fri Aug 25 15:50:18 2023 -0400,m-m-adams,3,remove unused svf string
+f421337a7faa31424db67fb94a2b40c04a8bf6aa,Fri Aug 25 21:34:39 2023 +0200,Paul Freund,2,Allow Norns layout to display incoming notes without learning the input and make highlight incoming notes default behavior to get user feedback (#389)
+66ce2155f7331bdc95be3e1160e0e3e6e2e5d515,Sat Aug 26 04:12:47 2023 +0900,Alter,3,Master compressor in Arranger view (#420)
+6c97b8455a8e4c848a0bad8db011bc86e13702ef,Tue Aug 22 08:51:17 2023 -0400,m-m-adams,5,reset loading synth to kit row
+edc084954da9742f5cd23ff77fabc53e9dcb07b3,Sat Aug 19 17:33:26 2023 -0400,Mark Adams,5,note row probability (#368)
+54f2c44e5d76f60d03a0b143e0468eba736f8cd9,Thu Aug 17 12:18:46 2023 -0700,Reed Koser,2,WIP: GeneralMemoryAllocator pretty-printer (#351)
+902fb0b915749de5388e52c525ba3c097334722c,Mon Aug 14 10:22:08 2023 -0700,Dan Weaver,2,Feature: Waveform loop lock (#293)
+6111ce1d979c8104404992a9a1c7736a668e6c7c,Mon Aug 14 12:58:11 2023 -0400,Mark Adams,2,print used bytes in stack as well as free (#345)
+c95a27cee4c044f7bc9ab7e05ca953eb7cb07f0c,Mon Aug 7 14:28:16 2023 -0700,Reed Koser,3,ub: Remove illegal FAM from ParamSet (#299)
+b2c9ccb9540725fe02caf89b5104eb3198d12744,Sun Aug 6 00:38:57 2023 -0400,Mark Adams,4,Define relwithdebinfo target (#306)
+d1596e7fb9d1a9192b174b7622f8ac621543e40f,Tue Aug 1 12:43:18 2023 -0700,Reed Koser,5,pages: also collect artifacts for PRs (#279)
+a6907464459531269c9ae2f0a2d9dc644435ad16,Mon Jul 31 14:39:43 2023 -0400,Mark Adams,2,Save empty song UI (#267)
+63d171fc0cb70143fb3a26ec43c440a9e848107c,Sun Jul 30 20:03:35 2023 -0400,Mark Adams,3,UX guidelines (#222)
+fa9ab59392b09edb2ce2b78fc35ee822eb16010d,Sun Jul 30 11:31:53 2023 -0400,Mark Adams,5,Improve 7seg text scroll and edit behaviour (#254)
+841df52fc9af30ee25a540f4b678d7f75c5115ca,Wed Jul 26 20:54:35 2023 +0200,Raúl Muñoz,5,Batch delete all “unused” kit rows (the ones with no notes) (#234)
+6b170910fc81f58368ff5fd697e38dc2da9c743c,Fri Jul 21 15:12:04 2023 -0700,Dan Weaver,4,Catch Notes setting to allow not catching existing notes. (#221)
+4650415eb1440994ebba92ccca79eaa4b6bce9cd,Mon Jul 17 19:17:01 2023 +0200,Paul Freund,3,Emit linker error if someone tries to use allocating new (#199)
+7efd75454bcd40f8c52bbfc4df69107fd9084520,Fri Jul 14 13:40:05 2023 -0400,Katherine Whitlock,2,C++ Allocator-compliant allocator and string (#194)
+28d69cbb6b65cf137ddb09e2e8f3e8838188fd97,Wed Jul 12 19:27:59 2023 +0200,Queroland,2,Change row color in session View #enhancement (#163)
+aed9cf5f315e9684f6122e290d03e9a439b84809,Wed Jul 12 13:22:42 2023 -0400,suivaht,4,Fine tempo knob (#178)
+07238b072989db6ee39c76ebe974b68cfcf40873,Mon Jul 10 11:54:35 2023 -0700,Casey Tucker,2,add .clang-format-ignore support to task-format (#175)
+d999112dbad93daf161e41502861f0b6f640586c,Thu Jul 6 17:44:34 2023 -0700,Reed Koser,4,remove straggling index-based button access (#167)
+d70902bbfbf09fe52cf772fb1fd14e77d93280b4,Thu Jul 6 01:13:22 2023 -0700,Casey Tucker,5,const button now constexpr enum
+872b58b93303f0da04e43ac540cb9eadcc1cdf71,Thu Jul 6 12:48:14 2023 +0900,Alter,2,Applied clang-format
+0d52012c8c1705223c4d18caedc8d906f310148a,Mon Jul 3 22:18:15 2023 +0200,Tobias Pisani,2,"Disallow shiftHorizontally in more cases, stop audio while changing values"
+77cf3d0bbabfba1417bce5746257d185ddab8cd7,Mon Jul 3 18:50:24 2023 +0200,Tobias Pisani,5,Implement Horizontal shift for audio clips
+11f0affbae9ad6676be8564a854f72dda8dafe64,Wed Jul 5 12:12:25 2023 +0900,Alter,3,Changed the UI to use the tempo knob
+d2d87dcf52bcb2735143021a7a858fa8e7924750,Tue Jul 4 17:55:46 2023 -0400,Katherine Whitlock,3,Final little bits
+7b4d86f9522c7e2d23947110b0e1238fc8aafd00,Mon Jul 3 14:53:05 2023 -0400,Katherine Whitlock,2,add base clang-tidy and clangd configurations
+4a47f3687cf1e7942d7d9b5c3941f4e5951c0a17,Mon Jul 3 06:54:38 2023 -0600,Aria Burrell,4,Version string variable substitution.
+3353431af057784fbbb8ad83e2eda338e71d7b48,Mon Jul 3 06:06:43 2023 -0600,Aria Burrell,3,Cleaned up git wheel installation routine.
+98585eb6b3dd1e240f8f53999f7bc8e658ca7bfc,Thu Jun 8 16:26:10 2023 +0200,bfredl,5,midi: initial support for sysEX messages
+d908c27449d7cd8893453063f2d113f282302e84,Mon Jul 3 10:41:38 2023 +0900,Alter,2,Master Compressor
+227c993a64fb5bbda9c3ce84089cee74946a53eb,Sat Jul 1 13:30:07 2023 +0200,Paul Freund,2,Incorporated feedback from first community call
+83afefb74158b1a1b3391fd9381855805939ff21,Sat Jul 1 10:57:09 2023 +0900,Alter,3,Quantize
+ec5b906b31fa080510152e79b71e78211a08f881,Sat Jul 1 01:14:06 2023 +0900,Alter,2,Add to the Community Settings menu.
+97097f5a59bf4b18518f12e3ab2f347215943626,Thu Jun 29 23:50:18 2023 -0400,m-m-adams,3,review from bobtwinkles
+079b79b00b06b86e0562ed20332bf9f01573f605,Fri Jun 30 03:28:47 2023 +0900,Alter,3,Applied clang-format14
+6145cdf0c4d844e881fede0b7952b6616bc67f88,Sun Jun 11 13:30:21 2023 +0200,bfredl,5,rebase drum keyboard onto multiple offset changes
+638a66ab8e8bbe30847e4a0f3155ca687e075d98,Fri Jun 30 03:28:47 2023 +0900,Alter,3,Applied clang-format14
+558d738ba4d66cb445d15a27a1aae28c2d885709,Tue Jun 27 19:45:59 2023 -0400,m-m-adams,4,clang-format fork files
+5fbca4c0277ee8c33eb091548a0d9c5d1606d402,Sat Jun 10 18:42:35 2023 +0900,Alter,4,DrumKeyboardScreen
+ada7fdd14d69ca4633ef3245f795ded17db0128c,Sun Jun 11 13:30:21 2023 +0200,bfredl,5,keyboardScreen: support multiple note layouts
+bf69a910c3354df4a5e5ff0b15c14eff2172a83f,Wed Jun 28 08:16:38 2023 -0400,Katherine Whitlock,3,Global init for MIDIDeviceManager
+98f61ecb989f3b582b22d2a0c7e51d745f253c36,Sun Jun 25 12:00:19 2023 -0400,m-m-adams,2,improve resonance volume compensation
+0647212aa5e99223b5aee2aa9c4756e052e4d3a4,Fri Jun 23 15:14:50 2023 -0700,bobtwinkles,4,toolchain: single source of truth for required version
+6db55fdfa6d66bbcbc32b89d99f9724d965b1121,Fri Jun 23 15:46:48 2023 +0200,Paul Freund,2,Incorporated additional feedback
+68c1185ca36a73cf47a9ccad7a04170152b91601,Tue Jun 20 02:59:27 2023 -0600,Aria Burrell,2,Multi-targeting is go.
+f90b5061e9f104fc67fe7f807deccd32adf1393a,Tue Jun 20 01:57:53 2023 -0600,Aria Burrell,3,Multi-target support
+91197725beee930dc92623f3dc8fd319eb9c52bb,Tue Jun 20 22:00:22 2023 +0200,Paul Freund,2,Finished feature
+56857676d88d4ad2b1d7430256b0b476494842c3,Thu Jun 15 19:28:25 2023 -0400,m-m-adams,3,address remaining comments
+d412ce276f47e81152d3a4c28082796600d739aa,Wed Jun 14 18:37:27 2023 -0400,m-m-adams,2,differentiate input and output ports on send and receive. Feature complete for upstream
+36c6486e1693911c57561dc4c0a980f5e91e92ff,Wed Jun 14 17:27:23 2023 -0400,m-m-adams,3,"change connectedUSBMIDIDevice USBMIDIDevice value to an array of 4, change remaining code to handle IO to array instead of single device"
+3776c5b865c1aaac5a1e36bb51a709a8371a957a,Mon Jun 12 22:45:19 2023 -0400,m-m-adams,3,comments on potential spots to differentiate midi cables
+ebdc5d02162fcf05e2beb416b259cbe44cf8eb35,Mon Jun 12 12:01:45 2023 -0400,m-m-adams,2,enable usb HS to increase bandwidth for future expansion
+ee8feee2df26cba0e6ae7ed5df4f91898b471c3a,Sun Jun 18 22:41:18 2023 +0200,Paul Freund,4,Added stubs for reading and writing code
+1682d9949cc0a4d260e566318afec3904ce76453,Sun Jun 18 13:16:15 2023 +0200,Philipp Falk,2,modifications to rwalk lfo resetting and bias
+36b4fae1657b4033828021afcce45002c3123686,Tue Jun 13 21:39:29 2023 +0200,Philipp Falk,4,make delay sync work with new sync types
+c5481e49667fa334e027707d176ebeb4bca2bd2e,Tue Jun 13 21:35:45 2023 +0200,Philipp Falk,5,make arp sync work with new sync types
+919d7ab51868a96363978b2fe824bfbc284f8963,Tue Jun 13 21:59:54 2023 +0200,Philipp Falk,3,make global LFO work with new sync types
+8fc691eafefcbef8c31a30356761a9b21c4aa363,Tue Jun 13 21:56:39 2023 +0200,Philipp Falk,5,add sample&hold and random walk lfos
+6d1d7f96801c41bd15375fbf72fe117e2e44cf77,Sat Jun 17 23:26:35 2023 +0200,Paul Freund,2,Added stubs for CODEOWNERS and CommunityFeatures.md
+4d95b5932cc7910e28a8117fbc8683be97991bbb,Mon Jun 12 08:02:42 2023 -0600,Aria Burrell,2,Updates to CONTRIBUTING and GOVERNANCE files as suggested.
+55a010029d39075a6255d63eab88315a8c85f047,Sat Jun 10 18:24:37 2023 -0600,Aria Burrell,2,Disabled RTT in OpenOCD
+9a301dd4d2c173da0db85f71338f6ccd682a1612,Fri Jun 9 06:39:58 2023 -0600,Aria Burrell,3,"Starting point for CODE_OF_CONDUCT, CONTRIBUTING, and FUNDING."
+97011413eb70dc50edaabc23041a9c300d0d1538,Thu Jun 8 15:54:06 2023 -0600,Aria Burrell,3,Added launch files for ESP-PROG / FTDI JTAG.
+e4251c30d13b03ad52717a986dace23839b90bf5,Thu Jun 8 15:50:59 2023 -0400,m-m-adams,2,comments on midi control flow into clips
+b00e9e229cc0598930d00d74bfca1bf2903ad44e,Thu Jun 8 14:57:21 2023 -0400,m-m-adams,2,ifndef guard text output and add to preprocessor
+edbe4a49cc7c12a06d926b2e99c495d15055c422,Thu Jun 8 14:08:57 2023 -0400,m-m-adams,2,comments clarifying learnt midi selection in kit
+785e1b8be61adfebf0dcc99291dd850d12f70c6c,Tue Jun 6 12:03:28 2023 -0400,Mark A,4,swap all backslashes for forward slashes
+6eae23f8b06cd39f69e761d54d5bd5b45cff3d12,Sun Jun 4 23:58:23 2023 -0600,Aria Burrell,5,Completed DIY Hardware Guide
+2f6a1584c29036d8f7ca58a880146b1004dd8abc,Mon Jun 5 10:30:35 2023 +1200,Rohan Hill,2,V4.1.4-alpha3
+07f25be36e087ac839481e204974bd086bcb1379,Thu Jun 1 12:27:04 2023 -0600,Aria Burrell,4,Added DelugeProbe section to guide.
+cb7ebe05c41c15e2de2db1823aeaeab930a48c3a,Mon May 8 23:47:15 2023 +1200,Rohan Hill,2,Minor comments and license notice
